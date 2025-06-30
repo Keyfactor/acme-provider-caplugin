@@ -1,0 +1,12 @@
+{
+  "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
+  "integration_type": "ca-gateway",
+  "name": "<Gateway Name Here>",
+  "status": "prototype",
+  "support_level": "community",
+  "link_github": false,
+  "update_catalog": false,
+  "description": "<Description Here>",
+  "gateway_framework": "10.x.x",
+   "release_dir": "UPDATE-THIS-WITH-PATH-TO-BINARY-BUILD-FOLDER"
+}

@@ -1,7 +1,8 @@
 {
     "$schema": "https://keyfactor.github.io/v2/integration-manifest-schema.json",
     "name": "Acme AnyCA REST plugin",
-    "release_dir": "AcmeCaPlugin/bin/Release/net6.0",
+    "release_dir": "AcmeCaPlugin/bin/Release",
+    "release_project": "AcmeCaPlugin/AcmeCaPlugin.csproj",
     "description": "Enrollment Only AnyCA Gateway REST plugin that works with multiple ACME Providers and DNS Providers",
     "status": "production",
     "integration_type": "anyca-plugin",

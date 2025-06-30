@@ -33,14 +33,14 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 ["EabHmacKey"] = new PropertyConfigInfo()
                 {
                     Comments = "External Account Binding HMAC key (optional)",
-                    Hidden = false,
+                    Hidden = true,
                     DefaultValue = "",
                     Type = "Secret"
                 },
                 ["SignerEncryptionPhrase"] = new PropertyConfigInfo()
                 {
                     Comments = "Used to encrypt singer information when account is saved to disk (optional)",
-                    Hidden = false,
+                    Hidden = true,
                     DefaultValue = "",
                     Type = "Secret"
                 },
@@ -72,7 +72,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 ["Cloudflare_ApiToken"] = new PropertyConfigInfo()
                 {
                     Comments = "Cloudflare DNS: API Token only if using Cloudflare DNS (Optional)",
-                    Hidden = false,
+                    Hidden = true,
                     DefaultValue = "",
                     Type = "Secret"
                 },
@@ -88,9 +88,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 ["Azure_ClientSecret"] = new PropertyConfigInfo()
                 {
                     Comments = "Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional)",
-                    Hidden = false,
+                    Hidden = true,
                     DefaultValue = "",
-                    Type = "String"
+                    Type = "Secret"
                 },
                 ["Azure_SubscriptionId"] = new PropertyConfigInfo()
                 {
@@ -116,16 +116,16 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 ["AwsRoute53_SecretKey"] = new PropertyConfigInfo()
                 {
                     Comments = "Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional)",
-                    Hidden = false,
+                    Hidden = true,
                     DefaultValue = "",
-                    Type = "String"
+                    Type = "Secret"
                 }
                 //IBM NS1 DNS
                 ,
                 ["Ns1_ApiKey"] = new PropertyConfigInfo()
                 {
                     Comments = "Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)",
-                    Hidden = false,
+                    Hidden = true,
                     DefaultValue = "",
                     Type = "String"
                 }

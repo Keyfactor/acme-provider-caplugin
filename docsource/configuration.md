@@ -1,39 +1,4 @@
-<h1 align="center" style="border-bottom: none">
-    Acme AnyCA Gateway REST Plugin
-</h1>
-
-<p align="center">
-  <!-- Badges -->
-<img src="https://img.shields.io/badge/integration_status-production-3D1973?style=flat-square" alt="Integration Status: production" />
-<a href="https://github.com/Keyfactor/acme-provider-caplugin/releases"><img src="https://img.shields.io/github/v/release/Keyfactor/acme-provider-caplugin?style=flat-square" alt="Release" /></a>
-<img src="https://img.shields.io/github/issues/Keyfactor/acme-provider-caplugin?style=flat-square" alt="Issues" />
-<img src="https://img.shields.io/github/downloads/Keyfactor/acme-provider-caplugin/total?style=flat-square&label=downloads&color=28B905" alt="GitHub Downloads (all assets, all releases)" />
-</p>
-
-<p align="center">
-  <!-- TOC -->
-  <a href="#support">
-    <b>Support</b>
-  </a> 
-  ·
-  <a href="#requirements">
-    <b>Requirements</b>
-  </a>
-  ·
-  <a href="#installation">
-    <b>Installation</b>
-  </a>
-  ·
-  <a href="#license">
-    <b>License</b>
-  </a>
-  ·
-  <a href="https://github.com/orgs/Keyfactor/repositories?q=anycagateway">
-    <b>Related Integrations</b>
-  </a>
-</p>
-
-
+## Overview
 The **Keyfactor ACME CA Gateway Plugin** enables certificate enrollment using the [ACME protocol (RFC 8555)](https://datatracker.ietf.org/doc/html/rfc8555), providing automated certificate issuance via any compliant Certificate Authority. This plugin is designed for **enrollment-only workflows** — it **does not support synchronization or revocation** of certificates.
 
 ### 🔧 What It Does
@@ -88,10 +53,6 @@ The plugin uses a modular design that separates ACME communication logic and DNS
 
 The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later.
 
-## Support
-The Acme AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com. 
-
-> To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
 ## Requirements
 
@@ -423,152 +384,91 @@ This section outlines all required ports, file access, permissions, and validati
 
 </details>
 
-## Installation
 
-1. Install the AnyCA Gateway REST per the [official Keyfactor documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/InstallIntroduction.htm).
+## Gateway Registration
 
-2. On the server hosting the AnyCA Gateway REST, download and unzip the latest [Acme AnyCA Gateway REST plugin](https://github.com/Keyfactor/acme-provider-caplugin/releases/latest) from GitHub.
+Each ACME CA issues certificates that chain to a specific intermediate and root certificate. For trust validation and proper integration with the Keyfactor Gateway, the following steps are required for **every ACME CA** used in your environment.
 
-3. Copy the unzipped directory (usually called `net6.0`) to the Extensions directory:
+---
 
-    ```shell
-    Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions
-    ```
+### 🔍 Retrieving Root and Intermediate Certificates
 
-    > The directory containing the Acme AnyCA Gateway REST plugin DLLs (`net6.0`) can be named anything, as long as it is unique within the `Extensions` directory.
+Here is how to obtain the root and intermediate CA certificates from supported ACME providers:
 
-4. Restart the AnyCA Gateway REST service.
+#### Let's Encrypt
 
-5. Navigate to the AnyCA Gateway REST portal and verify that the Gateway recognizes the Acme plugin by hovering over the ⓘ symbol to the right of the Gateway on the top left of the portal.
+- **Root**: ISRG Root X1
+- **Intermediate**: R3
 
-## Configuration
+**How to Get:**
+- Browse to: https://letsencrypt.org/certificates/
+- Download both the **ISRG Root X1** and **R3 Intermediate Certificate (PEM format)**.
 
-1. Follow the [official AnyCA Gateway REST documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) to define a new Certificate Authority, and use the notes below to configure the **Gateway Registration** and **CA Connection** tabs:
+#### Google Certificate Authority Service (CAS)
 
-    * **Gateway Registration**
+- **Root** and **Intermediate** are custom per CA Pool.
 
-        Each ACME CA issues certificates that chain to a specific intermediate and root certificate. For trust validation and proper integration with the Keyfactor Gateway, the following steps are required for **every ACME CA** used in your environment.
+**How to Get:**
+1. In the [Google Cloud Console](https://console.cloud.google.com/security/privateca), navigate to your CA pool.
+2. Click the CA name and go to the **Certificates** tab.
+3. Download the **root** and **intermediate** certificates for the issuing CA in PEM format.
 
-        ---
+#### ZeroSSL
 
-        ### 🔍 Retrieving Root and Intermediate Certificates
+- **Root**: USERTrust RSA Certification Authority
+- **Intermediate**: ZeroSSL RSA Domain Secure Site CA
 
-        Here is how to obtain the root and intermediate CA certificates from supported ACME providers:
+**How to Get:**
+- Visit: https://zerossl.com
+- Download the full certificate chain in PEM format.
+- Extract individual certs if needed using OpenSSL or a text editor.
 
-        #### Let's Encrypt
+#### Buypass
 
-        - **Root**: ISRG Root X1
-        - **Intermediate**: R3
+- **Root**: Buypass Class 3 Root CA
+- **Intermediate**: Buypass Class 3 CA 1 / G2 (depends on issuance)
 
-        **How to Get:**
-        - Browse to: https://letsencrypt.org/certificates/
-        - Download both the **ISRG Root X1** and **R3 Intermediate Certificate (PEM format)**.
+**How to Get:**
+- Go to: https://www.buypass.com
+- Download both root and intermediate in PEM or DER format.
 
-        #### Google Certificate Authority Service (CAS)
+---
 
-        - **Root** and **Intermediate** are custom per CA Pool.
+### 🧩 Installing Certificates on the Keyfactor Gateway Server
 
-        **How to Get:**
-        1. In the [Google Cloud Console](https://console.cloud.google.com/security/privateca), navigate to your CA pool.
-        2. Click the CA name and go to the **Certificates** tab.
-        3. Download the **root** and **intermediate** certificates for the issuing CA in PEM format.
+Once downloaded, the **root and intermediate certificates must be installed** in the proper Windows certificate stores on the Gateway server.
 
-        #### ZeroSSL
+#### Steps:
 
-        - **Root**: USERTrust RSA Certification Authority
-        - **Intermediate**: ZeroSSL RSA Domain Secure Site CA
+1. **Open** `certlm.msc` (Local Computer Certificates)
+2. Install the **Root CA certificate** into:
+   - `Trusted Root Certification Authorities` → `Certificates`
+3. Install the **Intermediate CA certificate** into:
+   - `Intermediate Certification Authorities` → `Certificates`
 
-        **How to Get:**
-        - Visit: https://zerossl.com
-        - Download the full certificate chain in PEM format.
-        - Extract individual certs if needed using OpenSSL or a text editor.
+You can import certificates using the GUI or PowerShell:
 
-        #### Buypass
+```powershell
+Import-Certificate -FilePath "C:\path\to\intermediate.crt" -CertStoreLocation "Cert:\LocalMachine\CA"
+Import-Certificate -FilePath "C:\path\to\root.crt" -CertStoreLocation "Cert:\LocalMachine\Root"
+```
 
-        - **Root**: Buypass Class 3 Root CA
-        - **Intermediate**: Buypass Class 3 CA 1 / G2 (depends on issuance)
+---
 
-        **How to Get:**
-        - Go to: https://www.buypass.com
-        - Download both root and intermediate in PEM or DER format.
+### 🔑 Using the Intermediate Thumbprint
 
-        ---
+When registering a new CA in Keyfactor Command:
 
-        ### 🧩 Installing Certificates on the Keyfactor Gateway Server
+- You must specify the **thumbprint** of the Intermediate CA certificate.
+- This is used to associate issued certificates with the correct issuing chain.
 
-        Once downloaded, the **root and intermediate certificates must be installed** in the proper Windows certificate stores on the Gateway server.
+**How to Get the Thumbprint:**
 
-        #### Steps:
+1. In `certlm.msc`, open the certificate under **Intermediate Certification Authorities**.
+2. Go to **Details** tab → Scroll to **Thumbprint**.
+3. Copy the hex string (ignore spaces).
 
-        1. **Open** `certlm.msc` (Local Computer Certificates)
-        2. Install the **Root CA certificate** into:
-           - `Trusted Root Certification Authorities` → `Certificates`
-        3. Install the **Intermediate CA certificate** into:
-           - `Intermediate Certification Authorities` → `Certificates`
+---
 
-        You can import certificates using the GUI or PowerShell:
+⚠️ All certificate chains must be trusted by the Gateway OS. If the intermediate is missing or untrusted, issuance will fail or returned certificates may not chain properly.
 
-        ```powershell
-        Import-Certificate -FilePath "C:\path\to\intermediate.crt" -CertStoreLocation "Cert:\LocalMachine\CA"
-        Import-Certificate -FilePath "C:\path\to\root.crt" -CertStoreLocation "Cert:\LocalMachine\Root"
-        ```
-
-        ---
-
-        ### 🔑 Using the Intermediate Thumbprint
-
-        When registering a new CA in Keyfactor Command:
-
-        - You must specify the **thumbprint** of the Intermediate CA certificate.
-        - This is used to associate issued certificates with the correct issuing chain.
-
-        **How to Get the Thumbprint:**
-
-        1. In `certlm.msc`, open the certificate under **Intermediate Certification Authorities**.
-        2. Go to **Details** tab → Scroll to **Thumbprint**.
-        3. Copy the hex string (ignore spaces).
-
-        ---
-
-        ⚠️ All certificate chains must be trusted by the Gateway OS. If the intermediate is missing or untrusted, issuance will fail or returned certificates may not chain properly.
-
-    * **CA Connection**
-
-        Populate using the configuration fields collected in the [requirements](#requirements) section.
-
-        * **DirectoryUrl** - ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.) 
-        * **Email** - Email for ACME account registration. 
-        * **EabKid** - External Account Binding Key ID (optional) 
-        * **EabHmacKey** - External Account Binding HMAC key (optional) 
-        * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1) 
-        * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
-        * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
-        * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 
-        * **Azure_ClientId** - Azure DNS: ClientId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_ClientSecret** - Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_SubscriptionId** - Azure DNS: SubscriptionId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_TenantId** - Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
-        * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
-        * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
-
-2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
-
-    * **default**
-
-3. Follow the [official Keyfactor documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Keyfactor.htm) to add each defined Certificate Authority to Keyfactor Command and import the newly defined Certificate Templates.
-
-
-## Compatibility
-
-The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later.
-
-
-## License
-
-Apache License 2.0, see [LICENSE](LICENSE).
-
-## Related Integrations
-
-See all [Keyfactor Any CA Gateways (REST)](https://github.com/orgs/Keyfactor/repositories?q=anycagateway).

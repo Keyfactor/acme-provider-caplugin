@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Keyfactor.AnyGateway.IAnyCAPlugin" Version="3.0.0" />
+    <PackageReference Include="Keyfactor.Logging" Version="1.1.1" />
+    <PackageReference Include="Keyfactor.PKI" Version="5.5.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AcmeCaPlugin\AcmeCaPlugin.csproj" />
+  </ItemGroup>
+
+</Project>

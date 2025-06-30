@@ -1,12 +1,86 @@
 {
-  "$schema": "https://keyfactor.github.io/integration-manifest-schema.json",
-  "integration_type": "ca-gateway",
-  "name": "<Gateway Name Here>",
-  "status": "prototype",
-  "support_level": "community",
-  "link_github": false,
-  "update_catalog": false,
-  "description": "<Description Here>",
-  "gateway_framework": "10.x.x",
-   "release_dir": "UPDATE-THIS-WITH-PATH-TO-BINARY-BUILD-FOLDER"
+    "$schema": "https://keyfactor.github.io/v2/integration-manifest-schema.json",
+    "name": "Acme AnyCA REST plugin",
+    "release_dir": "AcmeCaPlugin/bin/Release/net6.0",
+    "description": "Enrollment Only AnyCA Gateway REST plugin that works with multiple ACME Providers and DNS Providers",
+    "status": "production",
+    "integration_type": "anyca-plugin",
+    "support_level": "kf-supported",
+    "link_github": true,
+    "update_catalog": true,
+    "gateway_framework": "24.2",
+    "about": {
+        "carest": {
+            "ca_plugin_config": [
+                {
+                    "name": "DirectoryUrl",
+                    "description": "ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.)"
+                },
+                {
+                    "name": "Email",
+                    "description": "Email for ACME account registration."
+                },
+                {
+                    "name": "EabKid",
+                    "description": "External Account Binding Key ID (optional)"
+                },
+                {
+                    "name": "EabHmacKey",
+                    "description": "External Account Binding HMAC key (optional)"
+                },
+                {
+                    "name": "SignerEncryptionPhrase",
+                    "description": "Used to encrypt singer information when account is saved to disk (optional)"
+                },
+                {
+                    "name": "DnsProvider",
+                    "description": "DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1)"
+                },
+                {
+                    "name": "Google_ServiceAccountKeyPath",
+                    "description": "Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional)"
+                },
+                {
+                    "name": "Google_ProjectId",
+                    "description": "Google Cloud DNS: Project ID only if using Google DNS (Optional)"
+                },
+                {
+                    "name": "Cloudflare_ApiToken",
+                    "description": "Cloudflare DNS: API Token only if using Cloudflare DNS (Optional)"
+                },
+                {
+                    "name": "Azure_ClientId",
+                    "description": "Azure DNS: ClientId only if using Azure DNS and Not Managed Itentity in Azure (Optional)"
+                },
+                {
+                    "name": "Azure_ClientSecret",
+                    "description": "Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional)"
+                },
+                {
+                    "name": "Azure_SubscriptionId",
+                    "description": "Azure DNS: SubscriptionId only if using Azure DNS and Not Managed Itentity in Azure (Optional)"
+                },
+                {
+                    "name": "Azure_TenantId",
+                    "description": "Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional)"
+                },
+                {
+                    "name": "AwsRoute53_AccessKey",
+                    "description": "Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional)"
+                },
+                {
+                    "name": "AwsRoute53_SecretKey",
+                    "description": "Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional)"
+                },
+                {
+                    "name": "Ns1_ApiKey",
+                    "description": "Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)"
+                }
+            ],
+            "enrollment_config": [],
+            "product_ids": [
+                "default"
+            ]
+        }
+    }
 }

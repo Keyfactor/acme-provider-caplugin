@@ -1,38 +1,4 @@
-<h1 align="center" style="border-bottom: none">
-    Acme AnyCA Gateway REST Plugin
-</h1>
-
-<p align="center">
-  <!-- Badges -->
-<img src="https://img.shields.io/badge/integration_status-production-3D1973?style=flat-square" alt="Integration Status: production" />
-<a href="https://github.com/Keyfactor/acme-caplugin/releases"><img src="https://img.shields.io/github/v/release/Keyfactor/acme-caplugin?style=flat-square" alt="Release" /></a>
-<img src="https://img.shields.io/github/issues/Keyfactor/acme-caplugin?style=flat-square" alt="Issues" />
-<img src="https://img.shields.io/github/downloads/Keyfactor/acme-caplugin/total?style=flat-square&label=downloads&color=28B905" alt="GitHub Downloads (all assets, all releases)" />
-</p>
-
-<p align="center">
-  <!-- TOC -->
-  <a href="#support">
-    <b>Support</b>
-  </a> 
-  ·
-  <a href="#requirements">
-    <b>Requirements</b>
-  </a>
-  ·
-  <a href="#installation">
-    <b>Installation</b>
-  </a>
-  ·
-  <a href="#license">
-    <b>License</b>
-  </a>
-  ·
-  <a href="https://github.com/orgs/Keyfactor/repositories?q=anycagateway">
-    <b>Related Integrations</b>
-  </a>
-</p>
-
+## Overview
 
 The **Keyfactor ACME CA Gateway Plugin** enables certificate enrollment using the [ACME protocol (RFC 8555)](https://datatracker.ietf.org/doc/html/rfc8555), providing automated certificate issuance via any compliant Certificate Authority. This plugin is designed for **enrollment-only workflows** — it **does not support synchronization or revocation** of certificates.
 

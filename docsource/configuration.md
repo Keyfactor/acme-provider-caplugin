@@ -1,5 +1,4 @@
 ## Overview
-
 The **Keyfactor ACME CA Gateway Plugin** enables certificate enrollment using the [ACME protocol (RFC 8555)](https://datatracker.ietf.org/doc/html/rfc8555), providing automated certificate issuance via any compliant Certificate Authority. This plugin is designed for **enrollment-only workflows** — it **does not support synchronization or revocation** of certificates.
 
 ### 🔧 What It Does
@@ -54,10 +53,6 @@ The plugin uses a modular design that separates ACME communication logic and DNS
 
 The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later.
 
-## Support
-The Acme AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com. 
-
-> To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
 ## Requirements
 
@@ -389,67 +384,8 @@ This section outlines all required ports, file access, permissions, and validati
 
 </details>
 
-## Installation
 
-1. Install the AnyCA Gateway REST per the [official Keyfactor documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/InstallIntroduction.htm).
-
-2. On the server hosting the AnyCA Gateway REST, download and unzip the latest [Acme AnyCA Gateway REST plugin](https://github.com/Keyfactor/acme-caplugin/releases/latest) from GitHub.
-
-3. Copy the unzipped directory (usually called `net6.0`) to the Extensions directory:
-
-    ```shell
-    Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions
-    ```
-
-    > The directory containing the Acme AnyCA Gateway REST plugin DLLs (`net6.0`) can be named anything, as long as it is unique within the `Extensions` directory.
-
-4. Restart the AnyCA Gateway REST service.
-
-5. Navigate to the AnyCA Gateway REST portal and verify that the Gateway recognizes the Acme plugin by hovering over the ⓘ symbol to the right of the Gateway on the top left of the portal.
-
-## Configuration
-
-1. Follow the [official AnyCA Gateway REST documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) to define a new Certificate Authority, and use the notes below to configure the **Gateway Registration** and **CA Connection** tabs:
-
-    * **Gateway Registration**
-
-        TODO Gateway Registration is a required section
-
-    * **CA Connection**
-
-        Populate using the configuration fields collected in the [requirements](#requirements) section.
-
-        * **DirectoryUrl** - ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.) 
-        * **Email** - Email for ACME account registration. 
-        * **EabKid** - External Account Binding Key ID (optional) 
-        * **EabHmacKey** - External Account Binding HMAC key (optional) 
-        * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1) 
-        * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
-        * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
-        * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 
-        * **Azure_ClientId** - Azure DNS: ClientId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_ClientSecret** - Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_SubscriptionId** - Azure DNS: SubscriptionId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_TenantId** - Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
-        * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
-        * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
-
-2. The ACME Gateway Plugin does not require specific certificate templates to be mapped to individual ACME providers in Keyfactor. Instead, you have the flexibility to define templates based on your organization's needs or the specific capabilities of the ACME provider.
-
-    Key considerations:
-    - There is no required or hardcoded template for enrollment.
-    - The **default template** configured in Keyfactor Command will work for the majority of cases.
-    - You may create additional templates with specific **key types and sizes** (e.g., RSA 2048, RSA 4096, ECC P-256) to match the requirements or limitations of your chosen ACME CA.
-
-    This allows you to support a variety of use cases or certificate profiles without being tightly coupled to the ACME provider’s template logic. The ACME Gateway simply passes the CSR (generated using the selected Keyfactor template) to the ACME provider.
-
-    > ✅ The plugin will accept any Keyfactor template that produces a valid CSR in a format compatible with the selected ACME provider.
-
-3. Follow the [official Keyfactor documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Keyfactor.htm) to add each defined Certificate Authority to Keyfactor Command and import the newly defined Certificate Templates.
-
-## Root CA Configuration
+## Gateway Registration
 
 Each ACME CA issues certificates that chain to a specific intermediate and root certificate. For trust validation and proper integration with the Keyfactor Gateway, the following steps are required for **every ACME CA** used in your environment.
 
@@ -535,16 +471,4 @@ When registering a new CA in Keyfactor Command:
 ---
 
 ⚠️ All certificate chains must be trusted by the Gateway OS. If the intermediate is missing or untrusted, issuance will fail or returned certificates may not chain properly.
-
-## License
-
-Apache License 2.0, see [LICENSE](LICENSE).
-
-## Related Integrations
-
-See all [Keyfactor Any CA Gateways (REST)](https://github.com/orgs/Keyfactor/repositories?q=anycagateway).
-
-## Gateway Registration
-
-TODO Gateway Registration is a required section
 

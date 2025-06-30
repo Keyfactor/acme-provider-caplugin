@@ -449,7 +449,6 @@ This section outlines all required ports, file access, permissions, and validati
 
 3. Follow the [official Keyfactor documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Keyfactor.htm) to add each defined Certificate Authority to Keyfactor Command and import the newly defined Certificate Templates.
 
-
 ## Root CA Configuration
 
 Each ACME CA issues certificates that chain to a specific intermediate and root certificate. For trust validation and proper integration with the Keyfactor Gateway, the following steps are required for **every ACME CA** used in your environment.
@@ -537,7 +536,6 @@ When registering a new CA in Keyfactor Command:
 
 ⚠️ All certificate chains must be trusted by the Gateway OS. If the intermediate is missing or untrusted, issuance will fail or returned certificates may not chain properly.
 
-
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
@@ -545,3 +543,8 @@ Apache License 2.0, see [LICENSE](LICENSE).
 ## Related Integrations
 
 See all [Keyfactor Any CA Gateways (REST)](https://github.com/orgs/Keyfactor/repositories?q=anycagateway).
+
+## Gateway Registration
+
+TODO Gateway Registration is a required section
+

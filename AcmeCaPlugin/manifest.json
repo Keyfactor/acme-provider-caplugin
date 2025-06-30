@@ -1,0 +1,10 @@
+{
+  "extensions": {
+    "Keyfactor.AnyGateway.Extensions.IAnyCAPlugin": {
+      "AcmeCaPlugin": {
+        "assemblypath": "AcmeCaPlugin.dll",
+        "TypeFullName": "Keyfactor.Extensions.CAPlugin.Acme.AcmeCaPlugin"
+      }
+    }
+  }
+}

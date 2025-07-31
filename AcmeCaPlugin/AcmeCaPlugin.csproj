@@ -1,13 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup>
-<TargetFramework>net6.0</TargetFramework>
-<ImplicitUsings>disable</ImplicitUsings>
+<TargetFramework>net6.0;net8.0</TargetFramework>
+<ImplicitUsings>enable</ImplicitUsings>
+<Nullable>disable</Nullable>
 <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 <RootNamespace>Keyfactor.Extensions.CAPlugin.Acme</RootNamespace>
 <AssemblyName>AcmeCaPlugin</AssemblyName>
 </PropertyGroup>
-<ItemGroup>
+<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+<PackageReference Include="ACMESharpCore" Version="2.2.0.148" />
+<PackageReference Include="Autofac" Version="8.3.0" />
+<PackageReference Include="AWSSDK.Route53" Version="4.0.1" />
+<PackageReference Include="Azure.Identity" Version="1.14.0" />
+<PackageReference Include="Azure.ResourceManager.Cdn" Version="1.4.0" />
+<PackageReference Include="Azure.ResourceManager.Dns" Version="1.1.1" />
+<PackageReference Include="DnsClient" Version="1.8.0" />
+<PackageReference Include="Google.Apis.Dns.v1" Version="1.69.0.3753" />
+<PackageReference Include="Keyfactor.AnyGateway.IAnyCAPlugin" Version="3.0.0" />
+<PackageReference Include="Keyfactor.Logging" Version="1.1.1" />
+<PackageReference Include="Keyfactor.PKI" Version="5.5.0" />
+<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.5" />
+<PackageReference Include="Nager.PublicSuffix" Version="3.5.0" />
+<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+<PackageReference Include="System.Net.Http.WinHttpHandler" Version="9.0.5" />
+<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.5" />
+</ItemGroup>
+<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
 <PackageReference Include="ACMESharpCore" Version="2.2.0.148" />
 <PackageReference Include="Autofac" Version="8.3.0" />
 <PackageReference Include="AWSSDK.Route53" Version="4.0.1" />

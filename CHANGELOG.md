@@ -1,4 +1,7 @@
-﻿# v1.0.1
+﻿# v1.0.2
+* Fix DNS issue when fields outside domain are in the subject
+  
+ # v1.0.1
 * Added build for `.net8`
 
 # v1.0.0

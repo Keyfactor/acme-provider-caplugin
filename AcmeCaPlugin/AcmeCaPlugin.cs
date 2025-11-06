@@ -321,10 +321,14 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             if (string.IsNullOrWhiteSpace(subject))
                 throw new ArgumentException("Subject cannot be null or empty", nameof(subject));
 
-            return subject
-                .Replace("CN=", "", StringComparison.OrdinalIgnoreCase)
-                .Replace("cn=", "", StringComparison.OrdinalIgnoreCase)
-                .Trim();
+            // Match CN=value (capturing everything until comma or end of string)
+            var match = Regex.Match(subject, @"CN=([^,]+)", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                return match.Groups[1].Value.Trim();
+            }
+
+            throw new ArgumentException($"Could not extract CN from subject: {subject}", nameof(subject));
         }
 
         /// <summary>

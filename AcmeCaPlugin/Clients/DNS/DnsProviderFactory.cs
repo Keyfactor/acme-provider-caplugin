@@ -39,6 +39,14 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     return new Ns1DnsProvider(
                         config.Ns1_ApiKey
                     );
+                case "infoblox":
+                    return new InfobloxDnsProvider(
+                        config.Infoblox_Host,
+                        config.Infoblox_Username,
+                        config.Infoblox_Password,
+                        config.Infoblox_WapiVersion,
+                        config.Infoblox_IgnoreSslErrors
+                    );
                 default:
                     throw new NotSupportedException($"DNS provider '{config.DnsProvider}' is not supported.");
             }

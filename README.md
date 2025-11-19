@@ -544,7 +544,7 @@ This section outlines all required ports, file access, permissions, and validati
         * **EabKid** - External Account Binding Key ID (optional) 
         * **EabHmacKey** - External Account Binding HMAC key (optional) 
         * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1) 
+        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1, Infoblox) 
         * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
         * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
         * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 
@@ -555,6 +555,9 @@ This section outlines all required ports, file access, permissions, and validati
         * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
         * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
         * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
+        * **Infoblox_ApiUrl** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional) 
+        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional) 
+        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional) 
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 

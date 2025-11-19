@@ -35,7 +35,7 @@
                 },
                 {
                     "name": "DnsProvider",
-                    "description": "DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1)"
+                    "description": "DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1, Infoblox)"
                 },
                 {
                     "name": "Google_ServiceAccountKeyPath",
@@ -76,6 +76,18 @@
                 {
                     "name": "Ns1_ApiKey",
                     "description": "Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)"
+                },
+                {
+                    "name": "Infoblox_ApiUrl",
+                    "description": "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)"
+                },
+                {
+                    "name": "Infoblox_Username",
+                    "description": "Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)"
+                },
+                {
+                    "name": "Infoblox_Password",
+                    "description": "Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)"
                 }
             ],
             "enrollment_config": [],

@@ -555,7 +555,7 @@ This section outlines all required ports, file access, permissions, and validati
         * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
         * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
         * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
-        * **Infoblox_ApiUrl** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional) 
+        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional) 
         * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional) 
         * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional) 
 

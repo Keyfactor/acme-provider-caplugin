@@ -78,7 +78,7 @@
                     "description": "Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)"
                 },
                 {
-                    "name": "Infoblox_ApiUrl",
+                    "name": "Infoblox_Host",
                     "description": "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)"
                 },
                 {

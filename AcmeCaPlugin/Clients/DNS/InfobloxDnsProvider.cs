@@ -51,8 +51,8 @@ public class InfobloxDnsProvider : IDnsProvider
         {
             var cleanName = recordName.TrimEnd('.');
 
-            // Check if record already exists with the same value
-            var searchUrl = $"record:txt?name={Uri.EscapeDataString(cleanName)}&text={Uri.EscapeDataString(txtValue)}";
+            // Delete any existing records with the same name first to ensure only one record exists
+            var searchUrl = $"record:txt?name={Uri.EscapeDataString(cleanName)}";
             var searchResponse = await _httpClient.GetAsync(searchUrl);
 
             if (searchResponse.IsSuccessStatusCode)
@@ -60,14 +60,19 @@ public class InfobloxDnsProvider : IDnsProvider
                 var searchJson = await searchResponse.Content.ReadAsStringAsync();
                 var records = JsonDocument.Parse(searchJson).RootElement;
 
-                if (records.GetArrayLength() > 0)
+                // Delete all existing records with this name
+                foreach (var record in records.EnumerateArray())
                 {
-                    Console.WriteLine($"[Infoblox] TXT record already exists for {cleanName} with value {txtValue}. Skipping creation.");
-                    return true; // Record already exists, no need to create duplicate
+                    var recordRef = record.GetProperty("_ref").GetString();
+                    if (!string.IsNullOrEmpty(recordRef))
+                    {
+                        var deleteResponse = await _httpClient.DeleteAsync(recordRef);
+                        Console.WriteLine($"[Infoblox] Deleted existing TXT record {recordRef}: {deleteResponse.StatusCode}");
+                    }
                 }
             }
 
-            // Create new record if it doesn't exist
+            // Create new record
             var payload = new
             {
                 name = cleanName,

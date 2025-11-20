@@ -132,7 +132,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
                 //Infoblox DNS
                 ,
-                ["Infoblox_ApiUrl"] = new PropertyConfigInfo()
+                ["Infoblox_Host"] = new PropertyConfigInfo()
                 {
                     Comments = "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)",
                     Hidden = false,

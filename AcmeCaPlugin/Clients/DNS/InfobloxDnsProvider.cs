@@ -58,17 +58,28 @@ public class InfobloxDnsProvider : IDnsProvider
             };
 
             var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            Console.WriteLine($"[Infoblox] Payload: {json}");
 
-            var response = await _httpClient.PostAsync("record:txt", content);
+            // Option 1: Use relative path with leading slash
+            var request = new HttpRequestMessage(HttpMethod.Post, "./record:txt");
+            // OR
+            // var request = new HttpRequestMessage(HttpMethod.Post, "record%3Atxt");
+
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            Console.WriteLine($"[Infoblox] Request URI: {request.RequestUri}");
+
+            var response = await _httpClient.SendAsync(request);
             var result = await response.Content.ReadAsStringAsync();
 
-            Console.WriteLine($"[Infoblox] Create TXT: {response.StatusCode} - {result}");
+            Console.WriteLine($"[Infoblox] Status: {response.StatusCode}");
+            Console.WriteLine($"[Infoblox] Response: {result}");
+
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Infoblox] Error creating TXT record: {ex.Message}");
+            Console.WriteLine($"[Infoblox] ERROR: {ex.Message}");
             return false;
         }
     }

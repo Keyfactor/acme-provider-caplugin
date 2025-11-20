@@ -49,22 +49,37 @@ public class InfobloxDnsProvider : IDnsProvider
     {
         try
         {
+            var cleanName = recordName.TrimEnd('.');
+
+            // Check if record already exists with the same value
+            var searchUrl = $"record:txt?name={Uri.EscapeDataString(cleanName)}&text={Uri.EscapeDataString(txtValue)}";
+            var searchResponse = await _httpClient.GetAsync(searchUrl);
+
+            if (searchResponse.IsSuccessStatusCode)
+            {
+                var searchJson = await searchResponse.Content.ReadAsStringAsync();
+                var records = JsonDocument.Parse(searchJson).RootElement;
+
+                if (records.GetArrayLength() > 0)
+                {
+                    Console.WriteLine($"[Infoblox] TXT record already exists for {cleanName} with value {txtValue}. Skipping creation.");
+                    return true; // Record already exists, no need to create duplicate
+                }
+            }
+
+            // Create new record if it doesn't exist
             var payload = new
             {
-                name = recordName.TrimEnd('.'),
+                name = cleanName,
                 text = txtValue,
                 ttl = 60,
                 view = "default"
             };
 
             var json = JsonSerializer.Serialize(payload);
-            Console.WriteLine($"[Infoblox] Payload: {json}");
+            Console.WriteLine($"[Infoblox] Creating new TXT record. Payload: {json}");
 
-            // Option 1: Use relative path with leading slash
             var request = new HttpRequestMessage(HttpMethod.Post, "./record:txt");
-            // OR
-            // var request = new HttpRequestMessage(HttpMethod.Post, "record%3Atxt");
-
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
             Console.WriteLine($"[Infoblox] Request URI: {request.RequestUri}");

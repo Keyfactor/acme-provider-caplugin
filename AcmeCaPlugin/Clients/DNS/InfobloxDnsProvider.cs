@@ -107,6 +107,21 @@ public class InfobloxDnsProvider : IDnsProvider
             Console.WriteLine($"[Infoblox] Status: {response.StatusCode}");
             Console.WriteLine($"[Infoblox] Response: {result}");
 
+            if (response.IsSuccessStatusCode)
+            {
+                // Verify the record was created by searching for it
+                await Task.Delay(1000); // Brief delay to ensure record is committed
+                var verifySuccess = await VerifyRecordExists(cleanName, txtValue);
+                if (verifySuccess)
+                {
+                    Console.WriteLine($"[Infoblox] ✓ Verified TXT record exists: {cleanName}");
+                }
+                else
+                {
+                    Console.WriteLine($"[Infoblox] ⚠ WARNING: Record creation returned success, but verification failed for {cleanName}");
+                }
+            }
+
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -195,6 +210,39 @@ public class InfobloxDnsProvider : IDnsProvider
         catch (Exception ex)
         {
             Console.WriteLine($"[Infoblox] Error verifying zone: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> VerifyRecordExists(string recordName, string expectedValue)
+    {
+        try
+        {
+            var searchUrl = $"./record:txt?name={Uri.EscapeDataString(recordName)}";
+            var response = await _httpClient.GetAsync(searchUrl);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            var records = JsonDocument.Parse(json).RootElement;
+
+            foreach (var record in records.EnumerateArray())
+            {
+                var text = record.GetProperty("text").GetString();
+                if (text == expectedValue)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Infoblox] Error verifying record: {ex.Message}");
             return false;
         }
     }

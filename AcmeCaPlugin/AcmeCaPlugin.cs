@@ -372,7 +372,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
                 // Create DNS record
                 var dnsProvider = DnsProviderFactory.Create(config, _logger);
-                await dnsProvider.CreateRecordAsync(validation.DnsRecordName, validation.DnsRecordValue);
+                var recordCreated = await dnsProvider.CreateRecordAsync(validation.DnsRecordName, validation.DnsRecordValue);
+
+                if (!recordCreated)
+                {
+                    throw new InvalidOperationException($"Failed to create DNS record {validation.DnsRecordName} for domain {authz.Identifier.Value}");
+                }
 
                 _logger.LogInformation("Created DNS record {RecordName} for domain {Domain}",
                     validation.DnsRecordName, authz.Identifier.Value);

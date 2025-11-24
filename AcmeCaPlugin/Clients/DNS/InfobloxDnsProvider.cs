@@ -99,13 +99,12 @@ public class InfobloxDnsProvider : IDnsProvider
                     searchResponse.StatusCode, searchErrorBody);
             }
 
-            // Create new record with zone specified
+            // Create new record (zone is automatically determined by Infoblox from the FQDN)
             var payload = new
             {
                 name = cleanName,
                 text = txtValue,
                 ttl = 60,
-                zone = zoneName,
                 view = "default"
             };
 

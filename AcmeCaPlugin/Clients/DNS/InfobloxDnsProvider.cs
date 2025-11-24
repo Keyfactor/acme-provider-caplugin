@@ -84,11 +84,38 @@ public class InfobloxDnsProvider : IDnsProvider
                 // Delete all existing records with this name
                 foreach (var record in records.EnumerateArray())
                 {
-                    var recordRef = record.GetProperty("_ref").GetString();
-                    if (!string.IsNullOrEmpty(recordRef))
+                    if (!record.TryGetProperty("_ref", out var refProperty))
                     {
+                        _logger?.LogWarning("[Infoblox] Record does not have _ref property");
+                        continue;
+                    }
+
+                    var recordRef = refProperty.GetString();
+                    if (string.IsNullOrEmpty(recordRef))
+                    {
+                        _logger?.LogWarning("[Infoblox] Record _ref is null or empty");
+                        continue;
+                    }
+
+                    try
+                    {
+                        _logger?.LogDebug("[Infoblox] Attempting to delete record with ref: {RecordRef}", recordRef);
                         var deleteResponse = await _httpClient.DeleteAsync(recordRef);
-                        _logger?.LogDebug("[Infoblox] Deleted existing TXT record {RecordRef}: {StatusCode}", recordRef, deleteResponse.StatusCode);
+                        var deleteResult = await deleteResponse.Content.ReadAsStringAsync();
+
+                        _logger?.LogDebug("[Infoblox] Delete response: {StatusCode}, Body: {Body}",
+                            deleteResponse.StatusCode, deleteResult);
+
+                        if (!deleteResponse.IsSuccessStatusCode)
+                        {
+                            _logger?.LogWarning("[Infoblox] Failed to delete record {RecordRef}: {StatusCode} - {Response}",
+                                recordRef, deleteResponse.StatusCode, deleteResult);
+                        }
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        _logger?.LogError(deleteEx, "[Infoblox] Exception while deleting record {RecordRef}", recordRef);
+                        // Continue anyway - we'll try to create the new record
                     }
                 }
             }

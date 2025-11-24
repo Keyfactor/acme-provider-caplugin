@@ -63,7 +63,7 @@ public class InfobloxDnsProvider : IDnsProvider
             }
 
             // Delete any existing records with the same name first to ensure only one record exists
-            var searchUrl = $"record:txt?name={Uri.EscapeDataString(cleanName)}";
+            var searchUrl = $"./record:txt?name={Uri.EscapeDataString(cleanName)}";
             var searchResponse = await _httpClient.GetAsync(searchUrl);
 
             if (searchResponse.IsSuccessStatusCode)

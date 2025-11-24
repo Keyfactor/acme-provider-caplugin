@@ -45,7 +45,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                         config.Infoblox_Username,
                         config.Infoblox_Password,
                         config.Infoblox_WapiVersion,
-                        config.Infoblox_IgnoreSslErrors
+                        config.Infoblox_IgnoreSslErrors,
+                        logger
                     );
                 default:
                     throw new NotSupportedException($"DNS provider '{config.DnsProvider}' is not supported.");

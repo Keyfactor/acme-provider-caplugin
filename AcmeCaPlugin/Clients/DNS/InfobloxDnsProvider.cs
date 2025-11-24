@@ -8,6 +8,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 public class InfobloxDnsProvider : IDnsProvider
 {
@@ -17,13 +18,15 @@ public class InfobloxDnsProvider : IDnsProvider
     private readonly string _wapiVersion;
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ILogger _logger;
 
-    public InfobloxDnsProvider(string host, string username, string password, string wapiVersion = "2.12", bool ignoreSslErrors = false)
+    public InfobloxDnsProvider(string host, string username, string password, string wapiVersion = "2.12", bool ignoreSslErrors = false, ILogger logger = null)
     {
         _host = host?.TrimEnd('/') ?? throw new ArgumentNullException(nameof(host));
         _username = username ?? throw new ArgumentNullException(nameof(username));
         _password = password ?? throw new ArgumentNullException(nameof(password));
         _wapiVersion = wapiVersion ?? "2.12";
+        _logger = logger;
 
         var handler = new HttpClientHandler();
         if (ignoreSslErrors)
@@ -53,13 +56,15 @@ public class InfobloxDnsProvider : IDnsProvider
 
             // Extract the zone from the record name
             var zoneName = ExtractZoneFromRecord(cleanName);
-            Console.WriteLine($"[Infoblox] Extracted zone: {zoneName} from record: {cleanName}");
+            _logger?.LogDebug("[Infoblox] Extracted zone: {ZoneName} from record: {RecordName}", zoneName, cleanName);
 
             // Verify zone exists first
             var zoneExists = await VerifyZoneExistsAsync(zoneName);
             if (!zoneExists)
             {
-                Console.WriteLine($"[Infoblox] WARNING: Zone {zoneName} may not exist or is not accessible");
+                var errorMsg = $"Infoblox zone '{zoneName}' not found or not accessible. Cannot create DNS record '{cleanName}'. Please verify the zone exists in Infoblox and is configured as an authoritative zone.";
+                _logger?.LogError("[Infoblox] {ErrorMessage}", errorMsg);
+                throw new InvalidOperationException(errorMsg);
             }
 
             // Delete any existing records with the same name first to ensure only one record exists
@@ -78,7 +83,7 @@ public class InfobloxDnsProvider : IDnsProvider
                     if (!string.IsNullOrEmpty(recordRef))
                     {
                         var deleteResponse = await _httpClient.DeleteAsync(recordRef);
-                        Console.WriteLine($"[Infoblox] Deleted existing TXT record {recordRef}: {deleteResponse.StatusCode}");
+                        _logger?.LogDebug("[Infoblox] Deleted existing TXT record {RecordRef}: {StatusCode}", recordRef, deleteResponse.StatusCode);
                     }
                 }
             }
@@ -94,40 +99,51 @@ public class InfobloxDnsProvider : IDnsProvider
             };
 
             var json = JsonSerializer.Serialize(payload);
-            Console.WriteLine($"[Infoblox] Creating new TXT record. Payload: {json}");
+            _logger?.LogDebug("[Infoblox] Creating new TXT record. Payload: {Payload}", json);
 
             var request = new HttpRequestMessage(HttpMethod.Post, "./record:txt");
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            Console.WriteLine($"[Infoblox] Request URI: {request.RequestUri}");
+            _logger?.LogTrace("[Infoblox] Request URI: {RequestUri}", request.RequestUri);
 
             var response = await _httpClient.SendAsync(request);
             var result = await response.Content.ReadAsStringAsync();
 
-            Console.WriteLine($"[Infoblox] Status: {response.StatusCode}");
-            Console.WriteLine($"[Infoblox] Response: {result}");
+            _logger?.LogDebug("[Infoblox] Status: {StatusCode}", response.StatusCode);
+            _logger?.LogTrace("[Infoblox] Response: {Response}", result);
 
-            if (response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode)
             {
-                // Verify the record was created by searching for it
-                await Task.Delay(1000); // Brief delay to ensure record is committed
-                var verifySuccess = await VerifyRecordExists(cleanName, txtValue);
-                if (verifySuccess)
-                {
-                    Console.WriteLine($"[Infoblox] ✓ Verified TXT record exists: {cleanName}");
-                }
-                else
-                {
-                    Console.WriteLine($"[Infoblox] ⚠ WARNING: Record creation returned success, but verification failed for {cleanName}");
-                }
+                // Include detailed error information in the exception
+                var errorDetails = $"Infoblox API returned {response.StatusCode}. Zone: {zoneName}, Record: {cleanName}, Response: {result}";
+                throw new InvalidOperationException(errorDetails);
             }
 
-            return response.IsSuccessStatusCode;
+            // Verify the record was created by searching for it
+            await Task.Delay(1000); // Brief delay to ensure record is committed
+            var verifySuccess = await VerifyRecordExists(cleanName, txtValue);
+            if (verifySuccess)
+            {
+                _logger?.LogDebug("[Infoblox] Verified TXT record exists: {RecordName}", cleanName);
+            }
+            else
+            {
+                _logger?.LogWarning("[Infoblox] Record creation returned success, but verification failed for {RecordName}", cleanName);
+                throw new InvalidOperationException($"Infoblox record verification failed for {cleanName}. Record was created but could not be found when querying back.");
+            }
+
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            // Re-throw our specific exceptions with detailed error messages
+            throw;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Infoblox] ERROR: {ex.Message}");
-            return false;
+            // Wrap unexpected exceptions with context
+            _logger?.LogError(ex, "[Infoblox] DNS provider error");
+            throw new InvalidOperationException($"Infoblox DNS provider error: {ex.Message}", ex);
         }
     }
 
@@ -141,7 +157,7 @@ public class InfobloxDnsProvider : IDnsProvider
             var searchResponse = await _httpClient.GetAsync(searchUrl);
             if (!searchResponse.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[Infoblox] Failed to search for record: {searchResponse.StatusCode}");
+                _logger?.LogDebug("[Infoblox] Failed to search for record: {StatusCode}", searchResponse.StatusCode);
                 return false;
             }
 
@@ -150,26 +166,26 @@ public class InfobloxDnsProvider : IDnsProvider
 
             if (records.GetArrayLength() == 0)
             {
-                Console.WriteLine($"[Infoblox] No TXT records found for {cleanName}");
+                _logger?.LogDebug("[Infoblox] No TXT records found for {RecordName}", cleanName);
                 return false;
             }
 
             var recordRef = records[0].GetProperty("_ref").GetString();
             if (string.IsNullOrEmpty(recordRef))
             {
-                Console.WriteLine($"[Infoblox] Record reference is null or empty");
+                _logger?.LogDebug("[Infoblox] Record reference is null or empty");
                 return false;
             }
 
             var deleteResponse = await _httpClient.DeleteAsync(recordRef);
             var result = await deleteResponse.Content.ReadAsStringAsync();
 
-            Console.WriteLine($"[Infoblox] Delete TXT: {deleteResponse.StatusCode} - {result}");
+            _logger?.LogDebug("[Infoblox] Delete TXT: {StatusCode} - {Result}", deleteResponse.StatusCode, result);
             return deleteResponse.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Infoblox] Error deleting TXT record: {ex.Message}");
+            _logger?.LogError(ex, "[Infoblox] Error deleting TXT record");
             return false;
         }
     }
@@ -196,7 +212,7 @@ public class InfobloxDnsProvider : IDnsProvider
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[Infoblox] Zone lookup failed: {response.StatusCode}");
+                _logger?.LogDebug("[Infoblox] Zone lookup failed: {StatusCode}", response.StatusCode);
                 return false;
             }
 
@@ -204,12 +220,12 @@ public class InfobloxDnsProvider : IDnsProvider
             var zones = JsonDocument.Parse(json).RootElement;
             var zoneExists = zones.GetArrayLength() > 0;
 
-            Console.WriteLine($"[Infoblox] Zone {zoneName} exists: {zoneExists}");
+            _logger?.LogDebug("[Infoblox] Zone {ZoneName} exists: {ZoneExists}", zoneName, zoneExists);
             return zoneExists;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Infoblox] Error verifying zone: {ex.Message}");
+            _logger?.LogError(ex, "[Infoblox] Error verifying zone");
             return false;
         }
     }
@@ -242,7 +258,7 @@ public class InfobloxDnsProvider : IDnsProvider
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Infoblox] Error verifying record: {ex.Message}");
+            _logger?.LogError(ex, "[Infoblox] Error verifying record");
             return false;
         }
     }

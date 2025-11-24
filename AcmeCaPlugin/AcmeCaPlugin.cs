@@ -370,14 +370,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 if (validation == null)
                     throw new InvalidOperationException($"Failed to decode {DNS_CHALLENGE_TYPE} challenge validation details");
 
-                // Create DNS record
+                // Create DNS record (will throw exception with details if it fails)
                 var dnsProvider = DnsProviderFactory.Create(config, _logger);
-                var recordCreated = await dnsProvider.CreateRecordAsync(validation.DnsRecordName, validation.DnsRecordValue);
-
-                if (!recordCreated)
-                {
-                    throw new InvalidOperationException($"Failed to create DNS record {validation.DnsRecordName} for domain {authz.Identifier.Value}");
-                }
+                await dnsProvider.CreateRecordAsync(validation.DnsRecordName, validation.DnsRecordValue);
 
                 _logger.LogInformation("Created DNS record {RecordName} for domain {Domain}",
                     validation.DnsRecordName, authz.Identifier.Value);

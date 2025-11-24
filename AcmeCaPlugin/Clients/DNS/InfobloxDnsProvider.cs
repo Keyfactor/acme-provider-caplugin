@@ -69,12 +69,17 @@ public class InfobloxDnsProvider : IDnsProvider
 
             // Delete any existing records with the same name first to ensure only one record exists
             var searchUrl = $"./record:txt?name={Uri.EscapeDataString(cleanName)}";
+            _logger?.LogDebug("[Infoblox] Searching for existing records at: {SearchUrl}", searchUrl);
+
             var searchResponse = await _httpClient.GetAsync(searchUrl);
+            _logger?.LogDebug("[Infoblox] Search response status: {StatusCode}", searchResponse.StatusCode);
 
             if (searchResponse.IsSuccessStatusCode)
             {
                 var searchJson = await searchResponse.Content.ReadAsStringAsync();
                 var records = JsonDocument.Parse(searchJson).RootElement;
+                var recordCount = records.GetArrayLength();
+                _logger?.LogDebug("[Infoblox] Found {RecordCount} existing records", recordCount);
 
                 // Delete all existing records with this name
                 foreach (var record in records.EnumerateArray())
@@ -86,6 +91,12 @@ public class InfobloxDnsProvider : IDnsProvider
                         _logger?.LogDebug("[Infoblox] Deleted existing TXT record {RecordRef}: {StatusCode}", recordRef, deleteResponse.StatusCode);
                     }
                 }
+            }
+            else
+            {
+                var searchErrorBody = await searchResponse.Content.ReadAsStringAsync();
+                _logger?.LogWarning("[Infoblox] Search for existing records failed: {StatusCode}, Response: {Response}",
+                    searchResponse.StatusCode, searchErrorBody);
             }
 
             // Create new record with zone specified
@@ -116,6 +127,7 @@ public class InfobloxDnsProvider : IDnsProvider
             {
                 // Include detailed error information in the exception
                 var errorDetails = $"Infoblox API returned {response.StatusCode}. Zone: {zoneName}, Record: {cleanName}, Response: {result}";
+                _logger?.LogError("[Infoblox] API Error: {ErrorDetails}", errorDetails);
                 throw new InvalidOperationException(errorDetails);
             }
 

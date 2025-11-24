@@ -51,6 +51,17 @@ public class InfobloxDnsProvider : IDnsProvider
         {
             var cleanName = recordName.TrimEnd('.');
 
+            // Extract the zone from the record name
+            var zoneName = ExtractZoneFromRecord(cleanName);
+            Console.WriteLine($"[Infoblox] Extracted zone: {zoneName} from record: {cleanName}");
+
+            // Verify zone exists first
+            var zoneExists = await VerifyZoneExistsAsync(zoneName);
+            if (!zoneExists)
+            {
+                Console.WriteLine($"[Infoblox] WARNING: Zone {zoneName} may not exist or is not accessible");
+            }
+
             // Delete any existing records with the same name first to ensure only one record exists
             var searchUrl = $"record:txt?name={Uri.EscapeDataString(cleanName)}";
             var searchResponse = await _httpClient.GetAsync(searchUrl);
@@ -72,12 +83,13 @@ public class InfobloxDnsProvider : IDnsProvider
                 }
             }
 
-            // Create new record
+            // Create new record with zone specified
             var payload = new
             {
                 name = cleanName,
                 text = txtValue,
                 ttl = 60,
+                zone = zoneName,
                 view = "default"
             };
 
@@ -143,6 +155,46 @@ public class InfobloxDnsProvider : IDnsProvider
         catch (Exception ex)
         {
             Console.WriteLine($"[Infoblox] Error deleting TXT record: {ex.Message}");
+            return false;
+        }
+    }
+
+    private string ExtractZoneFromRecord(string recordName)
+    {
+        if (string.IsNullOrWhiteSpace(recordName))
+            return string.Empty;
+
+        var parts = recordName.TrimEnd('.').Split('.');
+        if (parts.Length < 2)
+            return recordName;
+
+        // Use last two labels as default zone: e.g., "keyfactortestb.com"
+        return string.Join(".", parts.Skip(parts.Length - 2));
+    }
+
+    private async Task<bool> VerifyZoneExistsAsync(string zoneName)
+    {
+        try
+        {
+            var zoneUrl = $"zone_auth?fqdn={Uri.EscapeDataString(zoneName)}";
+            var response = await _httpClient.GetAsync(zoneUrl);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"[Infoblox] Zone lookup failed: {response.StatusCode}");
+                return false;
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            var zones = JsonDocument.Parse(json).RootElement;
+            var zoneExists = zones.GetArrayLength() > 0;
+
+            Console.WriteLine($"[Infoblox] Zone {zoneName} exists: {zoneExists}");
+            return zoneExists;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Infoblox] Error verifying zone: {ex.Message}");
             return false;
         }
     }

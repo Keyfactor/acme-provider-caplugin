@@ -54,11 +54,11 @@ public class InfobloxDnsProvider : IDnsProvider
         {
             var cleanName = recordName.TrimEnd('.');
 
-            // Extract the zone from the record name
-            var zoneName = ExtractZoneFromRecord(cleanName);
-            _logger?.LogDebug("[Infoblox] Extracted zone: {ZoneName} from record: {RecordName}", zoneName, cleanName);
+            // Find the authoritative zone for this record
+            var zoneName = await FindAuthoritativeZoneAsync(cleanName);
+            _logger?.LogDebug("[Infoblox] Found authoritative zone: {ZoneName} for record: {RecordName}", zoneName, cleanName);
 
-            // Verify zone exists first
+            // Verify zone exists (already checked in FindAuthoritativeZoneAsync, but verify one more time for safety)
             var zoneExists = await VerifyZoneExistsAsync(zoneName);
             if (!zoneExists)
             {
@@ -228,7 +228,7 @@ public class InfobloxDnsProvider : IDnsProvider
         }
     }
 
-    private string ExtractZoneFromRecord(string recordName)
+    private async Task<string> FindAuthoritativeZoneAsync(string recordName)
     {
         if (string.IsNullOrWhiteSpace(recordName))
             return string.Empty;
@@ -237,8 +237,27 @@ public class InfobloxDnsProvider : IDnsProvider
         if (parts.Length < 2)
             return recordName;
 
-        // Use last two labels as default zone: e.g., "keyfactortestb.com"
-        return string.Join(".", parts.Skip(parts.Length - 2));
+        // Try to find the zone by checking from most specific to least specific
+        // For "_acme-challenge.hello.keyfactortestb.com", try:
+        // 1. hello.keyfactortestb.com
+        // 2. keyfactortestb.com
+        // Skip the first part (_acme-challenge) as it's the record itself
+        for (int i = 1; i < parts.Length - 1; i++)
+        {
+            var candidateZone = string.Join(".", parts.Skip(i));
+            _logger?.LogDebug("[Infoblox] Checking if zone exists: {ZoneName}", candidateZone);
+
+            if (await VerifyZoneExistsAsync(candidateZone))
+            {
+                _logger?.LogDebug("[Infoblox] Found authoritative zone: {ZoneName}", candidateZone);
+                return candidateZone;
+            }
+        }
+
+        // Fallback: use last two labels as default zone
+        var fallbackZone = string.Join(".", parts.Skip(parts.Length - 2));
+        _logger?.LogDebug("[Infoblox] No specific zone found, using fallback: {ZoneName}", fallbackZone);
+        return fallbackZone;
     }
 
     private async Task<bool> VerifyZoneExistsAsync(string zoneName)

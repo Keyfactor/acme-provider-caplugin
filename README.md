@@ -60,6 +60,7 @@ DNS-01 challenge automation is supported through the following providers:
 - **Azure DNS**
 - **Cloudflare**
 - **NS1**
+- **Infoblox**
 
 Additional DNS providers can be added by extending the included `IDnsProvider` interface.
 
@@ -109,6 +110,7 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 | Azure DNS    | Client Secret or Managed Identity             | `Azure_TenantId`, `Azure_ClientId`, `Azure_ClientSecret`, `Azure_SubscriptionId` |
 | Cloudflare   | API Token                                     | `Cloudflare_ApiToken`                                  |
 | NS1          | API Key                                       | `Ns1_ApiKey`                                           |
+| Infoblox     | Username/Password (Basic Auth)                | `Infoblox_Host`, `Infoblox_Username`, `Infoblox_Password` |
 
 </details>
 
@@ -141,8 +143,13 @@ Each provider supports multiple credential strategies:
 - **Cloudflare**:  
   - ✅ **Bearer API Token** for zone-level DNS control
 
-- **NS1**:  
+- **NS1**:
   - ✅ **API Key** passed in header `X-NSONE-Key`
+
+- **Infoblox**:
+  - ✅ **Username/Password** (Basic Auth via WAPI REST API)
+  - Optional: `Infoblox_WapiVersion` (defaults to `2.12`)
+  - Optional: `Infoblox_IgnoreSslErrors` for self-signed certificates
 
 </details>
 

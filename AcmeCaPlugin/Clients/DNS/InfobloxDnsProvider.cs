@@ -77,7 +77,8 @@ public class InfobloxDnsProvider : IDnsProvider
             if (searchResponse.IsSuccessStatusCode)
             {
                 var searchJson = await searchResponse.Content.ReadAsStringAsync();
-                var records = JsonDocument.Parse(searchJson).RootElement;
+                using var searchDoc = JsonDocument.Parse(searchJson);
+                var records = searchDoc.RootElement;
                 var recordCount = records.GetArrayLength();
                 _logger?.LogDebug("[Infoblox] Found {RecordCount} existing records", recordCount);
 
@@ -135,7 +136,7 @@ public class InfobloxDnsProvider : IDnsProvider
                 view = "default"
             };
 
-            var json = JsonSerializer.Serialize(payload);
+            var json = JsonSerializer.Serialize(payload, _jsonOptions);
             _logger?.LogDebug("[Infoblox] Creating new TXT record. Payload: {Payload}", json);
 
             var request = new HttpRequestMessage(HttpMethod.Post, "./record:txt");
@@ -190,7 +191,7 @@ public class InfobloxDnsProvider : IDnsProvider
         try
         {
             var cleanName = recordName.TrimEnd('.');
-            var searchUrl = $"record:txt?name={Uri.EscapeDataString(cleanName)}";
+            var searchUrl = $"./record:txt?name={Uri.EscapeDataString(cleanName)}";
 
             var searchResponse = await _httpClient.GetAsync(searchUrl);
             if (!searchResponse.IsSuccessStatusCode)
@@ -200,7 +201,8 @@ public class InfobloxDnsProvider : IDnsProvider
             }
 
             var searchJson = await searchResponse.Content.ReadAsStringAsync();
-            var records = JsonDocument.Parse(searchJson).RootElement;
+            using var searchDoc = JsonDocument.Parse(searchJson);
+            var records = searchDoc.RootElement;
 
             if (records.GetArrayLength() == 0)
             {
@@ -208,18 +210,36 @@ public class InfobloxDnsProvider : IDnsProvider
                 return false;
             }
 
-            var recordRef = records[0].GetProperty("_ref").GetString();
-            if (string.IsNullOrEmpty(recordRef))
+            var allDeleted = true;
+            foreach (var record in records.EnumerateArray())
             {
-                _logger?.LogDebug("[Infoblox] Record reference is null or empty");
-                return false;
+                if (!record.TryGetProperty("_ref", out var refProperty))
+                {
+                    _logger?.LogWarning("[Infoblox] Record does not have _ref property");
+                    allDeleted = false;
+                    continue;
+                }
+
+                var recordRef = "./" + refProperty.GetString();
+                if (string.IsNullOrEmpty(recordRef) || recordRef == "./")
+                {
+                    _logger?.LogWarning("[Infoblox] Record _ref is null or empty");
+                    allDeleted = false;
+                    continue;
+                }
+
+                var deleteResponse = await _httpClient.DeleteAsync(recordRef);
+                var result = await deleteResponse.Content.ReadAsStringAsync();
+
+                _logger?.LogDebug("[Infoblox] Delete TXT: {StatusCode} - {Result}", deleteResponse.StatusCode, result);
+
+                if (!deleteResponse.IsSuccessStatusCode)
+                {
+                    allDeleted = false;
+                }
             }
 
-            var deleteResponse = await _httpClient.DeleteAsync(recordRef);
-            var result = await deleteResponse.Content.ReadAsStringAsync();
-
-            _logger?.LogDebug("[Infoblox] Delete TXT: {StatusCode} - {Result}", deleteResponse.StatusCode, result);
-            return deleteResponse.IsSuccessStatusCode;
+            return allDeleted;
         }
         catch (Exception ex)
         {
@@ -274,7 +294,8 @@ public class InfobloxDnsProvider : IDnsProvider
             }
 
             var json = await response.Content.ReadAsStringAsync();
-            var zones = JsonDocument.Parse(json).RootElement;
+            using var zoneDoc = JsonDocument.Parse(json);
+            var zones = zoneDoc.RootElement;
             var zoneExists = zones.GetArrayLength() > 0;
 
             _logger?.LogDebug("[Infoblox] Zone {ZoneName} exists: {ZoneExists}", zoneName, zoneExists);
@@ -300,14 +321,18 @@ public class InfobloxDnsProvider : IDnsProvider
             }
 
             var json = await response.Content.ReadAsStringAsync();
-            var records = JsonDocument.Parse(json).RootElement;
+            using var recordDoc = JsonDocument.Parse(json);
+            var records = recordDoc.RootElement;
 
             foreach (var record in records.EnumerateArray())
             {
-                var text = record.GetProperty("text").GetString();
-                if (text == expectedValue)
+                if (record.TryGetProperty("text", out var textProperty))
                 {
-                    return true;
+                    var text = textProperty.GetString();
+                    if (text == expectedValue)
+                    {
+                        return true;
+                    }
                 }
             }
 

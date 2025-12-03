@@ -90,7 +90,7 @@ public class InfobloxDnsProvider : IDnsProvider
                         continue;
                     }
 
-                    var recordRef = refProperty.GetString();
+                    var recordRef = "./" + refProperty.GetString();
                     if (string.IsNullOrEmpty(recordRef))
                     {
                         _logger?.LogWarning("[Infoblox] Record _ref is null or empty");

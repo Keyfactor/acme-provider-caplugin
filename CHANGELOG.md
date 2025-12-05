@@ -1,4 +1,7 @@
-﻿# v1.0.2
+﻿# v1.1.0
+* Infoblox NIOS DNS Provider Support Added 
+  
+ # v1.0.2
 * Fix DNS issue when fields outside domain are in the subject
   
  # v1.0.1

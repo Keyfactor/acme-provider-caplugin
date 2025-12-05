@@ -34,5 +34,19 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         //IBM NS1 DNS Ns1_ApiKey
         public string Ns1_ApiKey { get; set; } = null;
 
+        // RFC 2136 Dynamic DNS (BIND/Microsoft DNS)
+        public string Rfc2136_Server { get; set; } = null;
+        public int Rfc2136_Port { get; set; } = 53;
+        public string Rfc2136_Zone { get; set; } = null;
+        public string Rfc2136_TsigKeyName { get; set; } = null;
+        public string Rfc2136_TsigKey { get; set; } = null;
+        public string Rfc2136_TsigAlgorithm { get; set; } = "hmac-sha256";
+
+        // Windows DNS Server (PowerShell-based)
+        public string WindowsDns_Server { get; set; } = null;
+        public string WindowsDns_Zone { get; set; } = null;
+        public string WindowsDns_Username { get; set; } = null;
+        public string WindowsDns_Password { get; set; } = null;
+
     }
 }

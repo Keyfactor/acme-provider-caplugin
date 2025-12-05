@@ -18,13 +18,16 @@ This plugin has been tested and confirmed to work with the following ACME provid
 
 It is designed to be provider-agnostic and should work with any standards-compliant ACME server.
 
-### 🌐 Supported DNS Providers (Initial Release)
+### 🌐 Supported DNS Providers
 DNS-01 challenge automation is supported through the following providers:
 - **Google Cloud DNS**
 - **AWS Route 53**
 - **Azure DNS**
 - **Cloudflare**
 - **NS1**
+- **Infoblox**
+- **RFC 2136 Dynamic DNS** (BIND)
+- **Windows DNS** (Microsoft DNS Server via PowerShell)
 
 Additional DNS providers can be added by extending the included `IDnsProvider` interface.
 
@@ -61,7 +64,7 @@ The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gatewa
 This plugin automates DNS-01 challenges using pluggable DNS provider implementations. These providers create and remove TXT records to prove domain control to ACME servers.
 
 <details>
-<summary><strong>✅ Supported DNS Providers (Initial Release)</strong></summary>
+<summary><strong>✅ Supported DNS Providers</strong></summary>
 
 | Provider     | Auth Methods Supported                        | Config Keys Required                                  |
 |--------------|-----------------------------------------------|--------------------------------------------------------|
@@ -70,6 +73,9 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 | Azure DNS    | Client Secret or Managed Identity             | `Azure_TenantId`, `Azure_ClientId`, `Azure_ClientSecret`, `Azure_SubscriptionId` |
 | Cloudflare   | API Token                                     | `Cloudflare_ApiToken`                                  |
 | NS1          | API Key                                       | `Ns1_ApiKey`                                           |
+| Infoblox     | Username/Password (Basic Auth)                | `Infoblox_Host`, `Infoblox_Username`, `Infoblox_Password` |
+| RFC 2136     | TSIG Key (BIND)                               | `Rfc2136_Server`, `Rfc2136_Zone`, `Rfc2136_TsigKeyName`, `Rfc2136_TsigKey` |
+| Windows DNS  | Windows/Domain Credentials                    | `WindowsDns_Server`, `WindowsDns_Zone`                 |
 
 </details>
 
@@ -102,8 +108,163 @@ Each provider supports multiple credential strategies:
 - **Cloudflare**:  
   - ✅ **Bearer API Token** for zone-level DNS control
 
-- **NS1**:  
+- **NS1**:
   - ✅ **API Key** passed in header `X-NSONE-Key`
+
+- **Infoblox**:
+  - ✅ **Username/Password** (Basic Auth via WAPI REST API)
+  - Optional: `Infoblox_WapiVersion` (defaults to `2.12`)
+  - Optional: `Infoblox_IgnoreSslErrors` for self-signed certificates
+
+- **RFC 2136 (BIND)**:
+  - ✅ **TSIG Key** for secure dynamic DNS updates
+  - Supports algorithms: `hmac-md5`, `hmac-sha1`, `hmac-sha256`, `hmac-sha384`, `hmac-sha512`
+  - Default algorithm: `hmac-sha256` (recommended)
+  - Optional: `Rfc2136_Port` (defaults to `53`)
+
+- **Windows DNS**:
+  - ✅ **Current User Context** (when running on domain-joined server)
+  - ✅ **Explicit Credentials** (`WindowsDns_Username`, `WindowsDns_Password`)
+  - Uses native PowerShell cmdlets (`Add-DnsServerResourceRecord`, `Remove-DnsServerResourceRecord`)
+
+</details>
+
+<details>
+<summary><strong>🏢 On-Premise DNS (RFC 2136)</strong></summary>
+
+The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers that support dynamic updates, including:
+
+- **BIND** (Berkeley Internet Name Domain)
+- **Microsoft DNS** (Windows Server DNS)
+- **PowerDNS** (with dynamic update support)
+- Any DNS server supporting RFC 2136 with TSIG authentication
+
+#### Configuration Requirements
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `Rfc2136_Server` | DNS server hostname or IP address | ✅ Yes |
+| `Rfc2136_Zone` | DNS zone to update (e.g., `example.com`) | ✅ Yes |
+| `Rfc2136_TsigKeyName` | TSIG key name (e.g., `acme-update-key`) | ✅ Yes |
+| `Rfc2136_TsigKey` | Base64-encoded TSIG secret key | ✅ Yes |
+| `Rfc2136_TsigAlgorithm` | TSIG algorithm (default: `hmac-sha256`) | Optional |
+| `Rfc2136_Port` | DNS server port (default: `53`) | Optional |
+
+#### Generating TSIG Keys
+
+**For BIND:**
+```bash
+# Generate a TSIG key using tsig-keygen (BIND 9.10+)
+tsig-keygen -a hmac-sha256 acme-update-key
+
+# Output example:
+# key "acme-update-key" {
+#     algorithm hmac-sha256;
+#     secret "base64encodedkey==";
+# };
+```
+
+**For Microsoft DNS:**
+```powershell
+# Generate a random key
+$key = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+Write-Host "TSIG Key: $key"
+
+# Configure in DNS using dnscmd
+dnscmd /Config /TsigKeyName acme-update-key
+dnscmd /Config /TsigAlgorithm HMAC-SHA256
+```
+
+#### BIND Configuration Example
+
+Add to `named.conf`:
+```
+key "acme-update-key" {
+    algorithm hmac-sha256;
+    secret "YourBase64EncodedKeyHere==";
+};
+
+zone "example.com" {
+    type master;
+    file "/var/named/example.com.zone";
+    allow-update { key "acme-update-key"; };
+};
+```
+
+#### Microsoft DNS Configuration
+
+1. Enable dynamic updates on the zone
+2. Configure TSIG key for secure updates
+3. Ensure the Gateway server has network access to the DNS server on port 53 (TCP)
+
+> ⚠️ **Security Note:** TSIG keys should be treated as secrets. Store them securely and use strong keys generated with cryptographically secure random number generators.
+
+</details>
+
+<details>
+<summary><strong>🪟 Windows DNS Server</strong></summary>
+
+The Windows DNS provider uses native PowerShell cmdlets to manage DNS records on Microsoft DNS Server. This is the recommended approach for Windows/Active Directory environments.
+
+#### Configuration Requirements
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `WindowsDns_Server` | DNS server hostname (null for local) | Optional |
+| `WindowsDns_Zone` | DNS zone to update (e.g., `corp.local`) | ✅ Yes |
+| `WindowsDns_Username` | Username for remote access (domain\user) | Optional |
+| `WindowsDns_Password` | Password for remote access | Optional |
+
+#### Prerequisites
+
+1. **DNS Server Role** must be installed on the target server
+2. **RSAT DNS Tools** must be installed on the Gateway server (if remote):
+   ```powershell
+   Install-WindowsFeature -Name RSAT-DNS-Server
+   ```
+3. **Dynamic Updates** must be enabled on the zone:
+   ```powershell
+   Set-DnsServerPrimaryZone -Name "corp.local" -DynamicUpdate NonsecureAndSecure
+   ```
+
+#### Authentication Options
+
+**Option 1: Current User Context (Recommended for domain-joined servers)**
+- Leave `WindowsDns_Username` and `WindowsDns_Password` empty
+- The Gateway service account must have DNS admin rights
+- Works when Gateway runs as a domain user with appropriate permissions
+
+**Option 2: Explicit Credentials**
+- Provide `WindowsDns_Username` in `domain\user` format
+- Provide `WindowsDns_Password`
+- Useful for cross-domain or workgroup scenarios
+
+#### Example Configuration
+
+```
+DnsProvider: windowsdns
+WindowsDns_Server: dc01.corp.local
+WindowsDns_Zone: corp.local
+```
+
+Or for local DNS server:
+```
+DnsProvider: windowsdns
+WindowsDns_Zone: corp.local
+```
+
+#### Permissions Required
+
+The service account needs these permissions:
+- **DnsAdmins** group membership, OR
+- Explicit permissions to create/delete records in the target zone
+
+```powershell
+# Add Gateway service account to DnsAdmins
+Add-ADGroupMember -Identity "DnsAdmins" -Members "svc-gateway$"
+```
+
+> ⚠️ **Note:** For AD-integrated zones, use `NonsecureAndSecure` or `Secure` dynamic updates. File-backed zones only support `NonsecureAndSecure` or `None`.
 
 </details>
 
@@ -334,6 +495,7 @@ This section outlines all required ports, file access, permissions, and validati
 |----------|------|------------------------------|-----------------------------------------------------|
 | HTTPS    | 443  | ACME Directory URL           | Connect to the ACME CA for account, challenge, and certificate operations |
 | HTTPS    | 443  | DNS Provider APIs            | Used for DNS-01 challenge automation (Google DNS, AWS, etc.) |
+| TCP      | 53   | On-Premise DNS Server        | RFC 2136 dynamic updates (BIND/Microsoft DNS) - only if using RFC 2136 provider |
 
 </details>
 

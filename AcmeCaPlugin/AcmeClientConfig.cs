@@ -34,5 +34,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         //IBM NS1 DNS Ns1_ApiKey
         public string Ns1_ApiKey { get; set; } = null;
 
+        // Infoblox DNS
+        public string Infoblox_Host { get; set; } = null;
+        public string Infoblox_Username { get; set; } = null;
+        public string Infoblox_Password { get; set; } = null;
+        public string Infoblox_WapiVersion { get; set; } = "2.12";
+        public bool Infoblox_IgnoreSslErrors { get; set; } = false;
+
     }
 }

@@ -60,6 +60,7 @@ DNS-01 challenge automation is supported through the following providers:
 - **Azure DNS**
 - **Cloudflare**
 - **NS1**
+- **Infoblox**
 
 Additional DNS providers can be added by extending the included `IDnsProvider` interface.
 
@@ -109,6 +110,7 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 | Azure DNS    | Client Secret or Managed Identity             | `Azure_TenantId`, `Azure_ClientId`, `Azure_ClientSecret`, `Azure_SubscriptionId` |
 | Cloudflare   | API Token                                     | `Cloudflare_ApiToken`                                  |
 | NS1          | API Key                                       | `Ns1_ApiKey`                                           |
+| Infoblox     | Username/Password (Basic Auth)                | `Infoblox_Host`, `Infoblox_Username`, `Infoblox_Password` |
 
 </details>
 
@@ -141,8 +143,13 @@ Each provider supports multiple credential strategies:
 - **Cloudflare**:  
   - ✅ **Bearer API Token** for zone-level DNS control
 
-- **NS1**:  
+- **NS1**:
   - ✅ **API Key** passed in header `X-NSONE-Key`
+
+- **Infoblox**:
+  - ✅ **Username/Password** (Basic Auth via WAPI REST API)
+  - Optional: `Infoblox_WapiVersion` (defaults to `2.12`)
+  - Optional: `Infoblox_IgnoreSslErrors` for self-signed certificates
 
 </details>
 
@@ -544,7 +551,7 @@ This section outlines all required ports, file access, permissions, and validati
         * **EabKid** - External Account Binding Key ID (optional) 
         * **EabHmacKey** - External Account Binding HMAC key (optional) 
         * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1) 
+        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1, Infoblox) 
         * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
         * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
         * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 
@@ -555,6 +562,9 @@ This section outlines all required ports, file access, permissions, and validati
         * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
         * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
         * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
+        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional) 
+        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional) 
+        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional) 
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 

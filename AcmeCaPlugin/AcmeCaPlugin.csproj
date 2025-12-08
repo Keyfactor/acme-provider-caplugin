@@ -16,6 +16,7 @@
         <PackageReference Include="Azure.ResourceManager.Cdn" Version="1.4.0"/>
         <PackageReference Include="Azure.ResourceManager.Dns" Version="1.1.1"/>
         <PackageReference Include="DnsClient" Version="1.8.0"/>
+        <PackageReference Include="ARSoft.Tools.Net" Version="3.0.0"/>
         <PackageReference Include="Google.Apis.Dns.v1" Version="1.69.0.3753"/>
         <PackageReference Include="Keyfactor.AnyGateway.IAnyCAPlugin" Version="3.0.0"/>
         <PackageReference Include="Keyfactor.Logging" Version="1.1.1"/>

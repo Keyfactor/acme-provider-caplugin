@@ -46,7 +46,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 },
                 ["DnsProvider"] = new PropertyConfigInfo()
                 {
-                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1)",
+                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, WindowsDns)",
                     Hidden = false,
                     DefaultValue = "Google",
                     Type = "String"
@@ -128,6 +128,80 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Hidden = true,
                     DefaultValue = "",
                     Type = "String"
+                },
+
+                // RFC 2136 Dynamic DNS (BIND/Microsoft DNS)
+                ["Rfc2136_Server"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: Server hostname or IP address (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Rfc2136_Port"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: Server port (default 53) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "53",
+                    Type = "Number"
+                },
+                ["Rfc2136_Zone"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: Zone name (e.g., example.com) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Rfc2136_TsigKeyName"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: TSIG key name for authentication (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Rfc2136_TsigKey"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional)",
+                    Hidden = true,
+                    DefaultValue = "",
+                    Type = "Secret"
+                },
+                ["Rfc2136_TsigAlgorithm"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "hmac-sha256",
+                    Type = "String"
+                },
+
+                // Windows DNS Server (PowerShell-based)
+                ["WindowsDns_Server"] = new PropertyConfigInfo()
+                {
+                    Comments = "Windows DNS: Server hostname (leave empty for local server) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["WindowsDns_Zone"] = new PropertyConfigInfo()
+                {
+                    Comments = "Windows DNS: Zone name (e.g., test.local) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["WindowsDns_Username"] = new PropertyConfigInfo()
+                {
+                    Comments = "Windows DNS: Username for remote server (domain\\user format) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["WindowsDns_Password"] = new PropertyConfigInfo()
+                {
+                    Comments = "Windows DNS: Password for remote server (Optional)",
+                    Hidden = true,
+                    DefaultValue = "",
+                    Type = "Secret"
                 }
 
             };

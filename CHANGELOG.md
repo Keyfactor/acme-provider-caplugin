@@ -2,6 +2,7 @@
 * Added RFC 2136 Dynamic DNS Provider Support (BIND with TSIG authentication)
 * Added Infoblox DNS Provider Support
 * Added configurable DNS verification server for private/local DNS zones
+* Fixed issue with Multiple Sans in the CSR
 
 # v1.1.0
 * Infoblox NIOS DNS Provider Support Added 

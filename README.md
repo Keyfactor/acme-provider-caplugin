@@ -309,6 +309,8 @@ The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers
         * **EabHmacKey** - External Account Binding HMAC key (optional) 
         * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional)
         * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)
+        * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
+        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136) 
         * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
         * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
         * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 

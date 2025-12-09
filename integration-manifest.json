@@ -102,6 +102,10 @@
                     "description": "RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional)"
                 },
                 {
+                    "name": "DnsVerificationServer",
+                    "description": "DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.)."
+                },
+                {
                     "name": "Infoblox_Host",
                     "description": "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)"
                 },
@@ -112,10 +116,6 @@
                 {
                     "name": "Infoblox_Password",
                     "description": "Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)"
-                },
-                {
-                    "name": "DnsVerificationServer",
-                    "description": "DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.)."
                 }
             ],
             "enrollment_config": [],

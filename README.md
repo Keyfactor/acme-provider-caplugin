@@ -336,6 +336,7 @@ The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers
         * **WindowsDns_Zone** - Windows DNS: Zone name (e.g., test.local) (Optional) 
         * **WindowsDns_Username** - Windows DNS: Username for remote server (domain\user format) (Optional) 
         * **WindowsDns_Password** - Windows DNS: Password for remote server (Optional) 
+        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.). 
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 

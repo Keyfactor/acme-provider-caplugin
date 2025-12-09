@@ -405,11 +405,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
             if (domains.Count == 0)
             {
+                _logger.LogError("No DNS names found in CSR. CSR may be malformed or missing CN/SANs.");
                 throw new InvalidOperationException("No DNS names found in CSR (neither CN nor SANs)");
             }
 
             var identifiers = domains.Select(d => new Identifier { Type = "dns", Value = d }).ToList();
-            _logger.LogInformation("Extracted {Count} domain(s) from CSR: {Domains}",
+            _logger.LogInformation("CSR domain extraction complete. Creating ACME order for {Count} domain(s): [{Domains}]",
                 identifiers.Count, string.Join(", ", domains));
 
             return identifiers;

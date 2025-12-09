@@ -42,12 +42,6 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         public string Rfc2136_TsigKey { get; set; } = null;
         public string Rfc2136_TsigAlgorithm { get; set; } = "hmac-sha256";
 
-        // Windows DNS Server (PowerShell-based)
-        public string WindowsDns_Server { get; set; } = null;
-        public string WindowsDns_Zone { get; set; } = null;
-        public string WindowsDns_Username { get; set; } = null;
-        public string WindowsDns_Password { get; set; } = null;
-
         // DNS Verification Settings
         public string DnsVerificationServer { get; set; } = null;
 

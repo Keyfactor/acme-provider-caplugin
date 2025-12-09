@@ -49,14 +49,6 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                         config.Rfc2136_Port,
                         logger
                     );
-                case "windowsdns":
-                    return new WindowsDnsProvider(
-                        config.WindowsDns_Server,
-                        config.WindowsDns_Zone,
-                        config.WindowsDns_Username,
-                        config.WindowsDns_Password,
-                        logger
-                    );
                 default:
                     throw new NotSupportedException($"DNS provider '{config.DnsProvider}' is not supported.");
             }

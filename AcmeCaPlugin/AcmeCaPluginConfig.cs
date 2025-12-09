@@ -46,7 +46,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 },
                 ["DnsProvider"] = new PropertyConfigInfo()
                 {
-                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, WindowsDns)",
+                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136)",
                     Hidden = false,
                     DefaultValue = "Google",
                     Type = "String"
@@ -172,36 +172,6 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Hidden = false,
                     DefaultValue = "hmac-sha256",
                     Type = "String"
-                },
-
-                // Windows DNS Server (PowerShell-based)
-                ["WindowsDns_Server"] = new PropertyConfigInfo()
-                {
-                    Comments = "Windows DNS: Server hostname (leave empty for local server) (Optional)",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "String"
-                },
-                ["WindowsDns_Zone"] = new PropertyConfigInfo()
-                {
-                    Comments = "Windows DNS: Zone name (e.g., test.local) (Optional)",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "String"
-                },
-                ["WindowsDns_Username"] = new PropertyConfigInfo()
-                {
-                    Comments = "Windows DNS: Username for remote server (domain\\user format) (Optional)",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "String"
-                },
-                ["WindowsDns_Password"] = new PropertyConfigInfo()
-                {
-                    Comments = "Windows DNS: Password for remote server (Optional)",
-                    Hidden = true,
-                    DefaultValue = "",
-                    Type = "Secret"
                 },
 
                 // DNS Verification Settings

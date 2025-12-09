@@ -248,12 +248,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 var acmeClient = new AcmeClient(_logger, config, httpClient, protocolClient.Directory,
                     new Clients.Acme.Account(accountDetails, signer));
 
-                // Extract domain
-                var cleanDomain = ExtractDomainFromSubject(subject);
-                var identifiers = new List<Identifier>
-        {
-            new Identifier { Type = "dns", Value = cleanDomain }
-        };
+                // Extract all domains (CN + SANs) for the ACME order
+                var identifiers = BuildIdentifiersFromSubjectAndSan(subject, san);
 
                 // Create order
                 var order = await acmeClient.CreateOrderAsync(identifiers, null);
@@ -329,6 +325,49 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             }
 
             throw new ArgumentException($"Could not extract CN from subject: {subject}", nameof(subject));
+        }
+
+        /// <summary>
+        /// Builds ACME identifiers from subject CN and SANs.
+        /// ACME orders must include all domains that will be in the CSR.
+        /// </summary>
+        /// <param name="subject">Subject string containing CN</param>
+        /// <param name="san">Dictionary of SANs (key: type like "dns", value: array of names)</param>
+        /// <returns>List of unique ACME identifiers for all domains</returns>
+        private List<Identifier> BuildIdentifiersFromSubjectAndSan(string subject, Dictionary<string, string[]> san)
+        {
+            var domains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Add the CN from subject
+            var cnDomain = ExtractDomainFromSubject(subject);
+            domains.Add(cnDomain);
+            _logger.LogDebug("Added CN domain to identifiers: {Domain}", cnDomain);
+
+            // Add DNS SANs if present
+            if (san != null)
+            {
+                // Check for "dns" key (case-insensitive)
+                foreach (var kvp in san)
+                {
+                    if (kvp.Key.Equals("dns", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+                    {
+                        foreach (var dnsName in kvp.Value)
+                        {
+                            if (!string.IsNullOrWhiteSpace(dnsName))
+                            {
+                                domains.Add(dnsName.Trim());
+                                _logger.LogDebug("Added SAN domain to identifiers: {Domain}", dnsName.Trim());
+                            }
+                        }
+                    }
+                }
+            }
+
+            var identifiers = domains.Select(d => new Identifier { Type = "dns", Value = d }).ToList();
+            _logger.LogInformation("Created ACME order with {Count} identifier(s): {Domains}",
+                identifiers.Count, string.Join(", ", domains));
+
+            return identifiers;
         }
 
         /// <summary>

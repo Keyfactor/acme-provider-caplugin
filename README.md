@@ -53,13 +53,15 @@ This plugin has been tested and confirmed to work with the following ACME provid
 
 It is designed to be provider-agnostic and should work with any standards-compliant ACME server.
 
-### 🌐 Supported DNS Providers (Initial Release)
+### 🌐 Supported DNS Providers
 DNS-01 challenge automation is supported through the following providers:
 - **Google Cloud DNS**
 - **AWS Route 53**
 - **Azure DNS**
 - **Cloudflare**
 - **NS1**
+- **Infoblox**
+- **RFC 2136 Dynamic DNS** (BIND with TSIG authentication)
 
 Additional DNS providers can be added by extending the included `IDnsProvider` interface.
 
@@ -100,7 +102,7 @@ The Acme AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor custo
 This plugin automates DNS-01 challenges using pluggable DNS provider implementations. These providers create and remove TXT records to prove domain control to ACME servers.
 
 <details>
-<summary><strong>✅ Supported DNS Providers (Initial Release)</strong></summary>
+<summary><strong>✅ Supported DNS Providers</strong></summary>
 
 | Provider     | Auth Methods Supported                        | Config Keys Required                                  |
 |--------------|-----------------------------------------------|--------------------------------------------------------|
@@ -109,6 +111,8 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 | Azure DNS    | Client Secret or Managed Identity             | `Azure_TenantId`, `Azure_ClientId`, `Azure_ClientSecret`, `Azure_SubscriptionId` |
 | Cloudflare   | API Token                                     | `Cloudflare_ApiToken`                                  |
 | NS1          | API Key                                       | `Ns1_ApiKey`                                           |
+| Infoblox     | Username/Password (Basic Auth)                | `Infoblox_Host`, `Infoblox_Username`, `Infoblox_Password` |
+| RFC 2136     | TSIG Key (BIND)                               | `Rfc2136_Server`, `Rfc2136_Zone`, `Rfc2136_TsigKeyName`, `Rfc2136_TsigKey` |
 
 </details>
 
@@ -141,287 +145,47 @@ Each provider supports multiple credential strategies:
 - **Cloudflare**:  
   - ✅ **Bearer API Token** for zone-level DNS control
 
-- **NS1**:  
+- **NS1**:
   - ✅ **API Key** passed in header `X-NSONE-Key`
 
-</details>
+- **Infoblox**:
+  - ✅ **Username/Password** (Basic Auth via WAPI REST API)
+  - Optional: `Infoblox_WapiVersion` (defaults to `2.12`)
+  - Optional: `Infoblox_IgnoreSslErrors` for self-signed certificates
 
-<details>
-<summary><strong>🧩 Adding New DNS Providers</strong></summary>
-
-To add support for new DNS services:
-
-1. Implement the `IDnsProvider` interface:
-   ```csharp
-   public interface IDnsProvider
-   {
-       Task<bool> CreateRecordAsync(string recordName, string txtValue);
-       Task<bool> DeleteRecordAsync(string recordName);
-   }
-   ```
-
-2. Register the new provider in the `DnsProviderFactory`:
-   ```csharp
-   case "yourprovider":
-       return new YourCustomDnsProvider(config.YourProviderConfigValues...);
-   ```
-
-3. Use zone detection logic similar to `GoogleDnsProvider`, `AzureDnsProvider`, or `Ns1DnsProvider`.
-
-Each provider is instantiated dynamically based on the `DnsProvider` field in the `AcmeClientConfig`.
-
-> 🔁 This modular DNS system ensures challenge automation works across cloud providers and is easily extensible.
+- **RFC 2136 (BIND)**:
+  - ✅ **TSIG Key** for secure dynamic DNS updates
+  - Supports algorithms: `hmac-md5`, `hmac-sha1`, `hmac-sha256`, `hmac-sha384`, `hmac-sha512`
+  - Default algorithm: `hmac-sha256` (recommended)
+  - Optional: `Rfc2136_Port` (defaults to `53`)
 
 </details>
 
 <details>
-<summary><strong>🔒 CA-Level DNS Provider Binding</strong></summary>
+<summary><strong>🏢 On-Premise DNS (RFC 2136)</strong></summary>
 
-Each ACME/DNS combination is supported **at the CA level**, meaning that only **one DNS provider** is configured per CA entry in Keyfactor. This ensures a clear and isolated challenge path for each ACME CA connector instance.
+The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers that support dynamic updates, including:
 
-If you need to support multiple DNS zones/providers (e.g., both AWS and Cloudflare), configure **separate CA entries**, each with its own DNS provider configuration.
+- **BIND** (Berkeley Internet Name Domain)
+- **PowerDNS** (with dynamic update support)
+- Any DNS server supporting RFC 2136 with TSIG authentication
 
-</details>
+#### Configuration Requirements
 
-<details>
-<summary><strong>🚫 No Offline Challenge Retry (Initial Release)</strong></summary>
+| Field | Description | Required |
+|-------|-------------|----------|
+| `Rfc2136_Server` | DNS server hostname or IP address | ✅ Yes |
+| `Rfc2136_Zone` | DNS zone to update (e.g., `example.com`) | ✅ Yes |
+| `Rfc2136_TsigKeyName` | TSIG key name (e.g., `acme-update-key`) | ✅ Yes |
+| `Rfc2136_TsigKey` | Base64-encoded TSIG secret key | ✅ Yes |
+| `Rfc2136_TsigAlgorithm` | TSIG algorithm (default: `hmac-sha256`) | Optional |
+| `Rfc2136_Port` | DNS server port (default: `53`) | Optional |
+| `DnsVerificationServer` | DNS server IP for verification (for private zones) | Optional |
 
-In this initial release, there is **no background or offline retry** for ACME challenges that timeout. If DNS propagation takes too long and the challenge is not verified in time, the certificate **request will fail immediately**.
+#### Generating TSIG Keys
 
-> ⚠️ However, in testing across all supported DNS providers and ACME services (e.g., Let's Encrypt, Google CAS, ZeroSSL, Buypass), propagation has been fast enough to avoid these timeouts in all observed cases.
-
-</details>
-
----
-
-### ACME Provider Configuration
-
-Each ACME CA (Certificate Authority) has slightly different expectations for account creation and request handling. This plugin supports multiple providers and dynamically handles credentials based on your configuration.
-
-<details>
-<summary><strong>🧩 External Account Binding (EAB) Support</strong></summary>
-
-Some providers **require** External Account Binding (EAB), which includes:
-- `eabKid`: External Account Binding Key ID
-- `eabHmacKey`: HMAC Key to sign the JWK thumbprint
-
-Others **do not require EAB**, and can create accounts automatically with just an email address.
-
-</details>
-
-<details>
-<summary><strong>✅ Supported Providers & Credential Expectations</strong></summary>
-
-| Provider       | Directory URL                                                  | Requires EAB | Notes                                                                 |
-|----------------|----------------------------------------------------------------|--------------|-----------------------------------------------------------------------|
-| Let's Encrypt  | `https://acme-v02.api.letsencrypt.org/directory`              | ❌ No         | Free and public; account created using only an email address         |
-| Buypass        | `https://api.buypass.com/acme/directory`                      | ❌ No         | Free and public; supports long-lived certs; no EAB required          |
-| ZeroSSL        | `https://acme.zerossl.com/v2/DV90/directory`                  | ✅ Yes        | Requires EAB; keys available via [ZeroSSL Developer Portal](https://zerossl.com) |
-| Google CAS     | `https://dv.acme-v02.api.pki.goog/directory`                  | ✅ Yes        | Requires EAB; keys issued via [Google CAS UI](https://console.cloud.google.com) |
-
-> ⚠️ If a provider requires EAB and it is not supplied, the request will fail during account registration.
-
-</details>
-
-<details>
-<summary><strong>📋 Configuration Fields (Per ACME Provider)</strong></summary>
-
-These values are set in the Keyfactor Command Gateway Configuration UI for each ACME provider:
-
-| Field         | Description                                       | Required        |
-|---------------|---------------------------------------------------|-----------------|
-| `directoryUrl`| The full ACME directory URL for the CA            | ✅ Yes          |
-| `email`       | Account email address for ACME registration       | ✅ Yes          |
-| `eabKid`      | External Account Binding Key ID (if applicable)   | 🚫 Only if EAB  |
-| `eabHmacKey`  | HMAC key used to sign EAB binding (if applicable) | 🚫 Only if EAB  |
-
-</details>
-
-<details>
-<summary><strong>🔐 How to Get EAB Credentials</strong></summary>
-
-- **ZeroSSL**:  
-  Log into your account and go to **"ACME EAB Credentials"** in the developer section.
-
-- **Google CAS**:  
-  Enable your CA Pool for ACME and generate EAB credentials under the **ACME Integration** tab in Google Cloud Console.
-
-</details>
-
-<details>
-<summary><strong>⚙️ Plugin Behavior</strong></summary>
-
-- If both `eabKid` and `eabHmacKey` are provided, they will be used to create the ACME account.
-- If either is omitted and the provider requires it, account creation will fail.
-- If neither is provided and the provider does not require EAB, the account will be created using only the email.
-
-Each provider is configured in the JSON config under `acmeProviders`, and only **one provider** is active per enrollment.
-
-</details>
-
----
-
-### Account Storage and Signer Encryption
-
-This ACME Gateway implementation uses a local file-based store to persist ACME accounts and their associated cryptographic signers. Accounts are cached on disk using a structured format, and signers (private keys) can be encrypted with a passphrase for enhanced security.
-
-<details>
-<summary><strong>📁 Account Directory Structure</strong></summary>
-
-Each account is saved in its own directory within:
-
-```
-%APPDATA%\AcmeAccounts\{host}_{accountId}
-```
-
-Where:
-- `{host}` is the ACME directory host with dots replaced by dashes (e.g., `acme-zerossl-com`)
-- `{accountId}` is the final segment of the account's KID URL
-
-</details>
-
-<details>
-<summary><strong>📄 Files per Account</strong></summary>
-
-- `Registration_v2`: Contains serialized `AccountDetails` in JSON format
-- `Signer_v2`: Contains encrypted or plaintext signer key material, depending on passphrase usage
-- `default_{host}.txt`: Tracks the default account for a given ACME directory host
-
-</details>
-
-<details>
-<summary><strong>🔐 Encryption with Passphrase</strong></summary>
-
-If the `SignerEncryptionPhrase` configuration value is set, the plugin encrypts signer files (`Signer_v2`) using AES with a PBKDF2-derived key and IV. The encrypted data includes a prepended salt and IV to support cross-platform decryption.
-
-```text
-[Salt (16 bytes)] [IV (16 bytes)] [AES-CBC encrypted signer JSON]
-```
-
-The encryption ensures that even if the account files are accessed on disk, the private keys remain unreadable without the configured passphrase.
-
-</details></details>
-
-<details>
-<summary><strong>🔗 External Account Binding (EAB)</strong></summary>
-
-For ACME providers requiring EAB (e.g., ZeroSSL, Google CAS), the gateway constructs a manually signed JWS payload containing:
-
-- Protected Header: `alg`, `kid`, `url`
-- Payload: Public JWK of the account signer
-- Signature: HMAC using `eabHmacKey`
-
-This JWS is included during account creation to bind the account to the pre-provisioned identity provided by the CA.
-
-</details>
-
-<details>
-<summary><strong>⚙️ Algorithm Support</strong></summary>
-
-- Signers support `ES256`, `ES384`, `ES512` (ECDSA) and `RS256`, `RS384`, `RS512` (RSA)
-- EAB HMAC support includes `HS256`, `HS384`, `HS512`
-
-If `ES256` key generation fails (e.g., due to platform constraints), the system automatically falls back to `RS256`.
-
-</details>
-
-### Account Caching and Auto-Creation
-
-On startup or during enrollment/sync, the plugin:
-
-1. Attempts to load a cached account for the specified ACME directory.
-2. If no account is found, it automatically creates a new one, using EAB if configured.
-3. The new account is saved to disk and set as default for future use.
-
-<details>
-<summary><strong>🔗 External Account Binding (EAB)</strong></summary>
-
-For ACME providers requiring EAB (e.g., ZeroSSL, Google CAS), the gateway constructs a manually signed JWS payload containing:
-
-- Protected Header: `alg`, `kid`, `url`
-- Payload: Public JWK of the account signer
-- Signature: HMAC using `eabHmacKey`
-
-This JWS is included during account creation to bind the account to the pre-provisioned identity provided by the CA.
-
-</details>
-
-<details>
-<summary><strong>🔧 Algorithm Support</strong></summary>
-
-- Signers support `ES256`, `ES384`, `ES512` (ECDSA) and `RS256`, `RS384`, `RS512` (RSA)
-- EAB HMAC support includes `HS256`, `HS384`, `HS512`
-
-If `ES256` key generation fails (e.g., due to platform constraints), the system automatically falls back to `RS256`.
-
-</details>
-
-### Network and File System Requirements
-
-This section outlines all required ports, file access, permissions, and validation behaviors for operating the ACME Gateway Plugin in a Keyfactor Orchestrator environment.
-
-<details>
-<summary><strong>🔌 Port Usage</strong></summary>
-
-#### Incoming Connections
-
-- **None.** This plugin does not expose any HTTP or network listeners.
-
-#### Outgoing Connections
-
-| Protocol | Port | Target                       | Purpose                                             |
-|----------|------|------------------------------|-----------------------------------------------------|
-| HTTPS    | 443  | ACME Directory URL           | Connect to the ACME CA for account, challenge, and certificate operations |
-| HTTPS    | 443  | DNS Provider APIs            | Used for DNS-01 challenge automation (Google DNS, AWS, etc.) |
-
-</details>
-
-<details>
-<summary><strong>💾 File System Requirements</strong></summary>
-
-#### Directory Layout
-
-| Path                                               | Purpose                                      |
-|----------------------------------------------------|----------------------------------------------|
-| `%APPDATA%\AcmeAccounts\`                        | Default base path for ACME account storage   |
-| `AcmeAccounts\{account_id}\Registration_v2`      | Contains serialized ACME account metadata    |
-| `AcmeAccounts\{account_id}\Signer_v2`            | Contains the encrypted private signer key    |
-| `AcmeAccounts\default_{host}.txt`                 | Stores the default account pointer for a given directory |
-
-#### File Access & Permissions
-
-| Path                     | Operation | Required Permission |
-|--------------------------|-----------|---------------------|
-| Account directory        | Create    | `Write`             |
-| Account files            | Read/Write| `Read`, `Write`     |
-
-- Files may be optionally encrypted using AES if a passphrase is configured.
-- Ensure the service account under which the orchestrator runs has read/write access to `%APPDATA%` or the custom configured base path.
-
-</details>
-
-<details>
-<summary><strong>👤 Windows Account Permissions</strong></summary>
-
-- The orchestrator service account (usually `NT AUTHORITY\SYSTEM` or a custom `Network Service`) must have:
-  - File I/O permissions to read/write within the configured base directory.
-  - Network access to ACME CA endpoints and DNS APIs over HTTPS.
-  - DNS provider credentials (Cloudflare API token, Google credentials, etc.) stored securely.
-
-</details>
-
-<details>
-<summary><strong>🌐 DNS Propagation Check Behavior</strong></summary>
-
-- **Initial Release Behavior**:
-  - DNS challenge propagation is checked during the interactive enrollment phase only.
-  - If propagation takes too long (> 60s), the request will fail. No deferred background polling occurs.
-  - There is **no offline retry mechanism** (e.g., for sync jobs) to pick up completed validations that succeeded after a delay.
-
-- **Future Considerations**:
-  - Support for file-based or database-backed challenge persistence may be added to allow background sync to re-check and finalize challenge state.
-
-</details>
+**For BIND:**
+```bash
 
 ## Installation
 
@@ -544,7 +308,7 @@ This section outlines all required ports, file access, permissions, and validati
         * **EabKid** - External Account Binding Key ID (optional) 
         * **EabHmacKey** - External Account Binding HMAC key (optional) 
         * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1) 
+        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox) 
         * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
         * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
         * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 
@@ -555,6 +319,16 @@ This section outlines all required ports, file access, permissions, and validati
         * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
         * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
         * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
+        * **Rfc2136_Server** - RFC 2136 DNS: Server hostname or IP address (Optional) 
+        * **Rfc2136_Port** - RFC 2136 DNS: Server port (default 53) (Optional) 
+        * **Rfc2136_Zone** - RFC 2136 DNS: Zone name (e.g., example.com) (Optional) 
+        * **Rfc2136_TsigKeyName** - RFC 2136 DNS: TSIG key name for authentication (Optional) 
+        * **Rfc2136_TsigKey** - RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional) 
+        * **Rfc2136_TsigAlgorithm** - RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional) 
+        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.). 
+        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional) 
+        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional) 
+        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional) 
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 

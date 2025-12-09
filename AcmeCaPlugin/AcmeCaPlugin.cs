@@ -18,6 +18,10 @@ using ACMESharp.Protocol;
 using System.Text;
 using Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS;
 using System.Text.RegularExpressions;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Pkcs;
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Pkcs;
 
 namespace Keyfactor.Extensions.CAPlugin.Acme
 {
@@ -248,8 +252,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 var acmeClient = new AcmeClient(_logger, config, httpClient, protocolClient.Directory,
                     new Clients.Acme.Account(accountDetails, signer));
 
-                // Extract all domains (CN + SANs) for the ACME order
-                var identifiers = BuildIdentifiersFromSubjectAndSan(subject, san);
+                // Decode CSR first so we can extract all domains from it
+                var csrBytes = Convert.FromBase64String(csr);
+
+                // Extract all domains directly from CSR (CN + SANs) for the ACME order
+                // This ensures we authorize exactly what's in the CSR
+                var identifiers = ExtractDomainsFromCsr(csrBytes);
 
                 // Create order
                 var order = await acmeClient.CreateOrderAsync(identifiers, null);
@@ -260,8 +268,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Process challenges
                 await ProcessAuthorizations(acmeClient, order, config);
 
-                // Finalize
-                var csrBytes = Convert.FromBase64String(csr);
+                // Finalize with original CSR bytes
                 order = await acmeClient.FinalizeOrderAsync(order, csrBytes);
 
                 // If order is valid immediately, download cert
@@ -328,43 +335,81 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         }
 
         /// <summary>
-        /// Builds ACME identifiers from subject CN and SANs.
-        /// ACME orders must include all domains that will be in the CSR.
+        /// Extracts all DNS names (CN + SANs) directly from the CSR.
+        /// This ensures the ACME order authorizes exactly what's in the CSR.
         /// </summary>
-        /// <param name="subject">Subject string containing CN</param>
-        /// <param name="san">Dictionary of SANs (key: type like "dns", value: array of names)</param>
-        /// <returns>List of unique ACME identifiers for all domains</returns>
-        private List<Identifier> BuildIdentifiersFromSubjectAndSan(string subject, Dictionary<string, string[]> san)
+        /// <param name="csrBytes">DER-encoded CSR bytes</param>
+        /// <returns>List of ACME identifiers for all domains in the CSR</returns>
+        private List<Identifier> ExtractDomainsFromCsr(byte[] csrBytes)
         {
             var domains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            // Add the CN from subject
-            var cnDomain = ExtractDomainFromSubject(subject);
-            domains.Add(cnDomain);
-            _logger.LogDebug("Added CN domain to identifiers: {Domain}", cnDomain);
-
-            // Add DNS SANs if present
-            if (san != null)
+            try
             {
-                // Check for "dns" key (case-insensitive)
-                foreach (var kvp in san)
+                // Parse the CSR using BouncyCastle
+                var pkcs10 = new Pkcs10CertificationRequest(csrBytes);
+                var csrInfo = pkcs10.GetCertificationRequestInfo();
+
+                // Extract CN from subject
+                var subject = csrInfo.Subject;
+                var cnValues = subject.GetValueList(X509Name.CN);
+                if (cnValues != null && cnValues.Count > 0)
                 {
-                    if (kvp.Key.Equals("dns", StringComparison.OrdinalIgnoreCase) && kvp.Value != null)
+                    var cn = cnValues[0]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(cn))
                     {
-                        foreach (var dnsName in kvp.Value)
+                        domains.Add(cn);
+                        _logger.LogDebug("Extracted CN from CSR: {Domain}", cn);
+                    }
+                }
+
+                // Extract SANs from CSR attributes
+                var attributes = csrInfo.Attributes;
+                if (attributes != null)
+                {
+                    foreach (var attr in attributes)
+                    {
+                        var attribute = Org.BouncyCastle.Asn1.Pkcs.AttributePkcs.GetInstance(attr);
+                        if (attribute.AttrType.Equals(PkcsObjectIdentifiers.Pkcs9AtExtensionRequest))
                         {
-                            if (!string.IsNullOrWhiteSpace(dnsName))
+                            // This attribute contains extension requests
+                            var extensions = X509Extensions.GetInstance(attribute.AttrValues[0]);
+                            var sanExtension = extensions.GetExtension(X509Extensions.SubjectAlternativeName);
+
+                            if (sanExtension != null)
                             {
-                                domains.Add(dnsName.Trim());
-                                _logger.LogDebug("Added SAN domain to identifiers: {Domain}", dnsName.Trim());
+                                var sanNames = GeneralNames.GetInstance(sanExtension.GetParsedValue());
+                                foreach (var name in sanNames.GetNames())
+                                {
+                                    // TagNo 2 = dNSName
+                                    if (name.TagNo == GeneralName.DnsName)
+                                    {
+                                        var dnsName = name.Name.ToString();
+                                        if (!string.IsNullOrWhiteSpace(dnsName))
+                                        {
+                                            domains.Add(dnsName);
+                                            _logger.LogDebug("Extracted SAN from CSR: {Domain}", dnsName);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to parse CSR for domain extraction");
+                throw new InvalidOperationException("Failed to parse CSR to extract domains", ex);
+            }
+
+            if (domains.Count == 0)
+            {
+                throw new InvalidOperationException("No DNS names found in CSR (neither CN nor SANs)");
+            }
 
             var identifiers = domains.Select(d => new Identifier { Type = "dns", Value = d }).ToList();
-            _logger.LogInformation("Created ACME order with {Count} identifier(s): {Domains}",
+            _logger.LogInformation("Extracted {Count} domain(s) from CSR: {Domains}",
                 identifiers.Count, string.Join(", ", domains));
 
             return identifiers;

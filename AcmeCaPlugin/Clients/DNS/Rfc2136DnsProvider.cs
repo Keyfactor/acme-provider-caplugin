@@ -126,9 +126,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Create the update message
                 var msg = new DnsUpdateMessage { ZoneName = DomainName.Parse(_zoneName) };
 
-                // Delete all TXT records for this name
+                // Delete all TXT records for this name using DeleteAllRecordsUpdate
                 var domainName = DomainName.Parse(cleanName);
-                msg.Updates.Add(new DeleteRecordUpdate(new TxtRecord(domainName, 0, string.Empty)));
+                msg.Updates.Add(new DeleteAllRecordsUpdate(domainName, RecordType.Txt));
 
                 // Sign with TSIG
                 msg.TSigOptions = new TSigRecord(

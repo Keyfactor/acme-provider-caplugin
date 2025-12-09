@@ -35,7 +35,7 @@
                 },
                 {
                     "name": "DnsProvider",
-                    "description": "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, WindowsDns)"
+                    "description": "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)"
                 },
                 {
                     "name": "Google_ServiceAccountKeyPath",
@@ -102,20 +102,16 @@
                     "description": "RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional)"
                 },
                 {
-                    "name": "WindowsDns_Server",
-                    "description": "Windows DNS: Server hostname (leave empty for local server) (Optional)"
+                    "name": "Infoblox_Host",
+                    "description": "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)"
                 },
                 {
-                    "name": "WindowsDns_Zone",
-                    "description": "Windows DNS: Zone name (e.g., test.local) (Optional)"
+                    "name": "Infoblox_Username",
+                    "description": "Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)"
                 },
                 {
-                    "name": "WindowsDns_Username",
-                    "description": "Windows DNS: Username for remote server (domain\\user format) (Optional)"
-                },
-                {
-                    "name": "WindowsDns_Password",
-                    "description": "Windows DNS: Password for remote server (Optional)"
+                    "name": "Infoblox_Password",
+                    "description": "Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)"
                 },
                 {
                     "name": "DnsVerificationServer",

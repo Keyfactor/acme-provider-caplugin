@@ -46,7 +46,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 },
                 ["DnsProvider"] = new PropertyConfigInfo()
                 {
-                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136)",
+                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)",
                     Hidden = false,
                     DefaultValue = "Google",
                     Type = "String"
@@ -181,6 +181,30 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Hidden = false,
                     DefaultValue = "",
                     Type = "String"
+                }
+
+                //Infoblox DNS
+                ,
+                ["Infoblox_Host"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Infoblox_Username"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Infoblox_Password"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)",
+                    Hidden = true,
+                    DefaultValue = "",
+                    Type = "Secret"
                 }
 
             };

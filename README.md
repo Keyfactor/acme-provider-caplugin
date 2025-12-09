@@ -61,8 +61,7 @@ DNS-01 challenge automation is supported through the following providers:
 - **Cloudflare**
 - **NS1**
 - **Infoblox**
-- **RFC 2136 Dynamic DNS** (BIND)
-- **Windows DNS** (Microsoft DNS Server via PowerShell)
+- **RFC 2136 Dynamic DNS** (BIND with TSIG authentication)
 
 Additional DNS providers can be added by extending the included `IDnsProvider` interface.
 
@@ -114,7 +113,6 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 | NS1          | API Key                                       | `Ns1_ApiKey`                                           |
 | Infoblox     | Username/Password (Basic Auth)                | `Infoblox_Host`, `Infoblox_Username`, `Infoblox_Password` |
 | RFC 2136     | TSIG Key (BIND)                               | `Rfc2136_Server`, `Rfc2136_Zone`, `Rfc2136_TsigKeyName`, `Rfc2136_TsigKey` |
-| Windows DNS  | Windows/Domain Credentials                    | `WindowsDns_Server`, `WindowsDns_Zone`                 |
 
 </details>
 
@@ -160,11 +158,6 @@ Each provider supports multiple credential strategies:
   - Supports algorithms: `hmac-md5`, `hmac-sha1`, `hmac-sha256`, `hmac-sha384`, `hmac-sha512`
   - Default algorithm: `hmac-sha256` (recommended)
   - Optional: `Rfc2136_Port` (defaults to `53`)
-
-- **Windows DNS**:
-  - ✅ **Current User Context** (when running on domain-joined server)
-  - ✅ **Explicit Credentials** (`WindowsDns_Username`, `WindowsDns_Password`)
-  - Uses native PowerShell cmdlets (`Add-DnsServerResourceRecord`, `Remove-DnsServerResourceRecord`)
 
 </details>
 
@@ -314,8 +307,8 @@ The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers
         * **Email** - Email for ACME account registration. 
         * **EabKid** - External Account Binding Key ID (optional) 
         * **EabHmacKey** - External Account Binding HMAC key (optional) 
-        * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, WindowsDns) 
+        * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional)
+        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)
         * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
         * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
         * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 
@@ -325,18 +318,17 @@ The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers
         * **Azure_TenantId** - Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
         * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
         * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
-        * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
-        * **Rfc2136_Server** - RFC 2136 DNS: Server hostname or IP address (Optional) 
-        * **Rfc2136_Port** - RFC 2136 DNS: Server port (default 53) (Optional) 
-        * **Rfc2136_Zone** - RFC 2136 DNS: Zone name (e.g., example.com) (Optional) 
-        * **Rfc2136_TsigKeyName** - RFC 2136 DNS: TSIG key name for authentication (Optional) 
-        * **Rfc2136_TsigKey** - RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional) 
-        * **Rfc2136_TsigAlgorithm** - RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional) 
-        * **WindowsDns_Server** - Windows DNS: Server hostname (leave empty for local server) (Optional) 
-        * **WindowsDns_Zone** - Windows DNS: Zone name (e.g., test.local) (Optional) 
-        * **WindowsDns_Username** - Windows DNS: Username for remote server (domain\user format) (Optional) 
-        * **WindowsDns_Password** - Windows DNS: Password for remote server (Optional) 
-        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.). 
+        * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)
+        * **Rfc2136_Server** - RFC 2136 DNS: Server hostname or IP address (Optional)
+        * **Rfc2136_Port** - RFC 2136 DNS: Server port (default 53) (Optional)
+        * **Rfc2136_Zone** - RFC 2136 DNS: Zone name (e.g., example.com) (Optional)
+        * **Rfc2136_TsigKeyName** - RFC 2136 DNS: TSIG key name for authentication (Optional)
+        * **Rfc2136_TsigKey** - RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional)
+        * **Rfc2136_TsigAlgorithm** - RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional)
+        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)
+        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)
+        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)
+        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 

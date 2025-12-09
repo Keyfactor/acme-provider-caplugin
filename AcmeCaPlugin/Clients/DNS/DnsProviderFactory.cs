@@ -49,6 +49,15 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                         config.Rfc2136_Port,
                         logger
                     );
+                case "infoblox":
+                    return new InfobloxDnsProvider(
+                        config.Infoblox_Host,
+                        config.Infoblox_Username,
+                        config.Infoblox_Password,
+                        config.Infoblox_WapiVersion,
+                        config.Infoblox_IgnoreSslErrors,
+                        logger
+                    );
                 default:
                     throw new NotSupportedException($"DNS provider '{config.DnsProvider}' is not supported.");
             }

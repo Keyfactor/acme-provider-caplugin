@@ -212,14 +212,14 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         }
 
         /// <summary>
-        /// Builds a TSIG record for authentication per RFC 2845.
+        /// Builds a TSIG record for authentication per RFC 2845/8945.
         /// </summary>
         private byte[] BuildTsigRecord(byte[] messageData, byte[] transactionId)
         {
             var tsig = new List<byte>();
 
-            // TSIG key name
-            tsig.AddRange(EncodeDomainName(_tsigKeyName));
+            // TSIG key name (canonical lowercase form)
+            tsig.AddRange(EncodeDomainNameLowercase(_tsigKeyName));
 
             // TYPE: TSIG (250)
             tsig.Add(0x00); tsig.Add(0xFA);
@@ -233,8 +233,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             // Build RDATA
             var rdata = new List<byte>();
 
-            // Algorithm name
-            rdata.AddRange(EncodeDomainName(_tsigAlgorithm));
+            // Algorithm name (canonical lowercase form)
+            rdata.AddRange(EncodeDomainNameLowercase(_tsigAlgorithm));
 
             // Time signed (48-bit, seconds since epoch)
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -275,29 +275,32 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         }
 
         /// <summary>
-        /// Builds the data to be signed for TSIG MAC calculation per RFC 2845.
+        /// Builds the data to be signed for TSIG MAC calculation per RFC 8945 (which obsoletes RFC 2845).
+        /// For a request, the digest components are:
+        ///   DNS Message (request)
+        ///   TSIG Variables
         /// </summary>
         private byte[] BuildMacData(byte[] messageData, long timeSigned)
         {
             var data = new List<byte>();
 
-            // DNS message (request MAC is computed over the message without TSIG RR)
+            // 1. DNS Message (the request without TSIG RR)
             data.AddRange(messageData);
 
-            // TSIG Variables - per RFC 2845 section 3.4.2
-            // Key name (in canonical wire format - lowercase)
+            // 2. TSIG Variables per RFC 8945 Section 4.3.3
+            // Key name (canonical wire format - lowercase)
             data.AddRange(EncodeDomainNameLowercase(_tsigKeyName));
 
-            // CLASS (ANY = 255)
+            // CLASS (ANY = 255) - 16-bit
             data.Add(0x00); data.Add(0xFF);
 
-            // TTL (always 0 for TSIG)
+            // TTL (always 0 for TSIG) - 32-bit
             data.Add(0x00); data.Add(0x00); data.Add(0x00); data.Add(0x00);
 
-            // Algorithm name (in canonical wire format - lowercase)
+            // Algorithm name (canonical wire format - lowercase)
             data.AddRange(EncodeDomainNameLowercase(_tsigAlgorithm));
 
-            // Time signed (48-bit)
+            // Time signed (48-bit, big-endian)
             data.Add((byte)((timeSigned >> 40) & 0xFF));
             data.Add((byte)((timeSigned >> 32) & 0xFF));
             data.Add((byte)((timeSigned >> 24) & 0xFF));
@@ -305,13 +308,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             data.Add((byte)((timeSigned >> 8) & 0xFF));
             data.Add((byte)(timeSigned & 0xFF));
 
-            // Fudge (300 seconds)
+            // Fudge (300 seconds = 0x012C) - 16-bit
             data.Add(0x01); data.Add(0x2C);
 
-            // Error (0 = NOERROR)
+            // Error (0 = NOERROR) - 16-bit
             data.Add(0x00); data.Add(0x00);
 
-            // Other Len (0)
+            // Other Len (0) - 16-bit
             data.Add(0x00); data.Add(0x00);
 
             // Other Data (empty since Other Len is 0)

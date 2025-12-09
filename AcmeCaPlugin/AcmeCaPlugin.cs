@@ -345,7 +345,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 throw new InvalidOperationException("Missing or invalid authorization list in order payload.");
             }
 
-            var dnsVerifier = new DnsVerificationHelper(_logger);
+            var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
             var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation)>();
 
             // First pass: Create all DNS records

@@ -202,6 +202,15 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Hidden = true,
                     DefaultValue = "",
                     Type = "Secret"
+                },
+
+                // DNS Verification Settings
+                ["DnsVerificationServer"] = new PropertyConfigInfo()
+                {
+                    Comments = "DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
                 }
 
             };

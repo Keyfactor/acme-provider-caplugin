@@ -48,5 +48,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         public string WindowsDns_Username { get; set; } = null;
         public string WindowsDns_Password { get; set; } = null;
 
+        // DNS Verification Settings
+        public string DnsVerificationServer { get; set; } = null;
+
     }
 }

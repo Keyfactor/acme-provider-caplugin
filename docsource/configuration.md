@@ -147,14 +147,15 @@ The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers
 
 **For BIND:**
 bash
-# Generate a TSIG key using tsig-keygen (BIND 9.10+)
+
+**Generate a TSIG key using tsig-keygen (BIND 9.10+)**
 tsig-keygen -a hmac-sha256 acme-update-key
 
-# Output example:
-# key "acme-update-key" {
-#     algorithm hmac-sha256;
-#     secret "base64encodedkey==";
-# };
+**Output example:**
+key "acme-update-key" {
+    algorithm hmac-sha256;
+    secret "base64encodedkey==";
+};
 
 
 #### BIND Configuration Example

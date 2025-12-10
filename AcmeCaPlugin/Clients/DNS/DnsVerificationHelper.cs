@@ -15,23 +15,43 @@ namespace Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS
     {
         private readonly ILogger _logger;
         private readonly List<IPAddress> _dnsServers;
+        private readonly bool _usePrivateDns;
         private const int MaxVerificationAttempts = 3;
         private const int VerificationDelaySeconds = 10;
 
-        public DnsVerificationHelper(ILogger logger)
+        /// <summary>
+        /// Creates a DNS verification helper.
+        /// </summary>
+        /// <param name="logger">Logger instance</param>
+        /// <param name="verificationServer">Optional DNS server IP for verification.
+        /// For private/local zones (e.g., .local), specify your authoritative DNS server.
+        /// Leave null/empty to use public DNS servers.</param>
+        public DnsVerificationHelper(ILogger logger, string verificationServer = null)
         {
             _logger = logger;
+            _dnsServers = new List<IPAddress>();
 
-            // Use multiple public DNS servers for verification
-            _dnsServers = new List<IPAddress>
+            // Check if a private DNS server was specified
+            if (!string.IsNullOrWhiteSpace(verificationServer) && IPAddress.TryParse(verificationServer, out var privateServer))
             {
-                IPAddress.Parse("8.8.8.8"),       // Google Primary
-                IPAddress.Parse("8.8.4.4"),       // Google Secondary
-                IPAddress.Parse("1.1.1.1"),       // Cloudflare Primary
-                IPAddress.Parse("1.0.0.1"),       // Cloudflare Secondary
-                IPAddress.Parse("208.67.222.222"), // OpenDNS
-                IPAddress.Parse("9.9.9.9")        // Quad9
-            };
+                _usePrivateDns = true;
+                _dnsServers.Add(privateServer);
+                _logger.LogInformation("DNS verification will use private DNS server: {Server}", verificationServer);
+            }
+            else
+            {
+                _usePrivateDns = false;
+                // Use multiple public DNS servers for verification
+                _dnsServers = new List<IPAddress>
+                {
+                    IPAddress.Parse("8.8.8.8"),       // Google Primary
+                    IPAddress.Parse("8.8.4.4"),       // Google Secondary
+                    IPAddress.Parse("1.1.1.1"),       // Cloudflare Primary
+                    IPAddress.Parse("1.0.0.1"),       // Cloudflare Secondary
+                    IPAddress.Parse("208.67.222.222"), // OpenDNS
+                    IPAddress.Parse("9.9.9.9")        // Quad9
+                };
+            }
         }
 
         /// <summary>
@@ -39,7 +59,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS
         /// </summary>
         /// <param name="recordName">DNS record name (e.g., _acme-challenge.example.com)</param>
         /// <param name="expectedValue">Expected TXT record value</param>
-        /// <param name="minimumServers">Minimum number of DNS servers that must see the record</param>
+        /// <param name="minimumServers">Minimum number of DNS servers that must see the record (ignored for private DNS)</param>
         /// <returns>True if record propagated successfully</returns>
         public async Task<bool> WaitForDnsPropagationAsync(
             string recordName,
@@ -47,6 +67,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS
             int minimumServers = 3)
         {
             _logger.LogInformation("Waiting for DNS propagation of {RecordName}", recordName);
+
+            // For private DNS, only require 1 server (the authoritative server)
+            var requiredServers = _usePrivateDns ? 1 : minimumServers;
 
             for (int attempt = 1; attempt <= MaxVerificationAttempts; attempt++)
             {
@@ -79,7 +102,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS
                 _logger.LogDebug("DNS verification attempt {Attempt}/{MaxAttempts}: {SuccessCount}/{TotalServers} servers confirmed record. Results: {Results}",
                     attempt, MaxVerificationAttempts, successCount, _dnsServers.Count, string.Join(", ", results));
 
-                if (successCount >= minimumServers)
+                if (successCount >= requiredServers)
                 {
                     _logger.LogInformation("DNS record propagated successfully! {SuccessCount}/{TotalServers} servers confirmed record after {Attempt} attempts",
                         successCount, _dnsServers.Count, attempt);

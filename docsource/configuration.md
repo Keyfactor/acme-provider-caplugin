@@ -146,7 +146,7 @@ The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers
 #### Generating TSIG Keys
 
 **For BIND:**
-```bash
+bash
 # Generate a TSIG key using tsig-keygen (BIND 9.10+)
 tsig-keygen -a hmac-sha256 acme-update-key
 
@@ -155,12 +155,12 @@ tsig-keygen -a hmac-sha256 acme-update-key
 #     algorithm hmac-sha256;
 #     secret "base64encodedkey==";
 # };
-```
+
 
 #### BIND Configuration Example
 
 Add to `named.conf`:
-```
+
 key "acme-update-key" {
     algorithm hmac-sha256;
     secret "YourBase64EncodedKeyHere==";
@@ -171,7 +171,7 @@ zone "example.com" {
     file "/var/named/example.com.zone";
     allow-update { key "acme-update-key"; };
 };
-```
+
 
 > ⚠️ **Security Note:** TSIG keys should be treated as secrets. Store them securely and use strong keys generated with cryptographically secure random number generators.
 

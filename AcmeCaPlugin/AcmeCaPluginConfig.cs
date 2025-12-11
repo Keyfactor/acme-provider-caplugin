@@ -207,6 +207,30 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Type = "Secret"
                 }
 
+                //Infoblox DNS
+                ,
+                ["Infoblox_Host"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Infoblox_Username"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Infoblox_Password"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)",
+                    Hidden = true,
+                    DefaultValue = "",
+                    Type = "Secret"
+                }
+
             };
         }
 

@@ -39,6 +39,16 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     return new Ns1DnsProvider(
                         config.Ns1_ApiKey
                     );
+                case "rfc2136":
+                    return new Rfc2136DnsProvider(
+                        config.Rfc2136_Server,
+                        config.Rfc2136_Zone,
+                        config.Rfc2136_TsigKeyName,
+                        config.Rfc2136_TsigKey,
+                        config.Rfc2136_TsigAlgorithm,
+                        config.Rfc2136_Port,
+                        logger
+                    );
                 case "infoblox":
                     return new InfobloxDnsProvider(
                         config.Infoblox_Host,

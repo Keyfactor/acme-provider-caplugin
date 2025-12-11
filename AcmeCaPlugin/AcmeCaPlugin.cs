@@ -18,6 +18,10 @@ using ACMESharp.Protocol;
 using System.Text;
 using Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS;
 using System.Text.RegularExpressions;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Pkcs;
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Pkcs;
 
 namespace Keyfactor.Extensions.CAPlugin.Acme
 {
@@ -248,12 +252,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 var acmeClient = new AcmeClient(_logger, config, httpClient, protocolClient.Directory,
                     new Clients.Acme.Account(accountDetails, signer));
 
-                // Extract domain
-                var cleanDomain = ExtractDomainFromSubject(subject);
-                var identifiers = new List<Identifier>
-        {
-            new Identifier { Type = "dns", Value = cleanDomain }
-        };
+                // Decode CSR first so we can extract all domains from it
+                var csrBytes = Convert.FromBase64String(csr);
+
+                // Extract all domains directly from CSR (CN + SANs) for the ACME order
+                // This ensures we authorize exactly what's in the CSR
+                var identifiers = ExtractDomainsFromCsr(csrBytes);
 
                 // Create order
                 var order = await acmeClient.CreateOrderAsync(identifiers, null);
@@ -264,8 +268,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Process challenges
                 await ProcessAuthorizations(acmeClient, order, config);
 
-                // Finalize
-                var csrBytes = Convert.FromBase64String(csr);
+                // Finalize with original CSR bytes
                 order = await acmeClient.FinalizeOrderAsync(order, csrBytes);
 
                 // If order is valid immediately, download cert
@@ -332,6 +335,88 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         }
 
         /// <summary>
+        /// Extracts all DNS names (CN + SANs) directly from the CSR.
+        /// This ensures the ACME order authorizes exactly what's in the CSR.
+        /// </summary>
+        /// <param name="csrBytes">DER-encoded CSR bytes</param>
+        /// <returns>List of ACME identifiers for all domains in the CSR</returns>
+        private List<Identifier> ExtractDomainsFromCsr(byte[] csrBytes)
+        {
+            var domains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                // Parse the CSR using BouncyCastle
+                var pkcs10 = new Pkcs10CertificationRequest(csrBytes);
+                var csrInfo = pkcs10.GetCertificationRequestInfo();
+
+                // Extract CN from subject
+                var subject = csrInfo.Subject;
+                var cnValues = subject.GetValueList(X509Name.CN);
+                if (cnValues != null && cnValues.Count > 0)
+                {
+                    var cn = cnValues[0]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(cn))
+                    {
+                        domains.Add(cn);
+                        _logger.LogDebug("Extracted CN from CSR: {Domain}", cn);
+                    }
+                }
+
+                // Extract SANs from CSR attributes
+                var attributes = csrInfo.Attributes;
+                if (attributes != null)
+                {
+                    foreach (var attr in attributes)
+                    {
+                        var attribute = Org.BouncyCastle.Asn1.Pkcs.AttributePkcs.GetInstance(attr);
+                        if (attribute.AttrType.Equals(PkcsObjectIdentifiers.Pkcs9AtExtensionRequest))
+                        {
+                            // This attribute contains extension requests
+                            var extensions = X509Extensions.GetInstance(attribute.AttrValues[0]);
+                            var sanExtension = extensions.GetExtension(X509Extensions.SubjectAlternativeName);
+
+                            if (sanExtension != null)
+                            {
+                                var sanNames = GeneralNames.GetInstance(sanExtension.GetParsedValue());
+                                foreach (var name in sanNames.GetNames())
+                                {
+                                    // TagNo 2 = dNSName
+                                    if (name.TagNo == GeneralName.DnsName)
+                                    {
+                                        var dnsName = name.Name.ToString();
+                                        if (!string.IsNullOrWhiteSpace(dnsName))
+                                        {
+                                            domains.Add(dnsName);
+                                            _logger.LogDebug("Extracted SAN from CSR: {Domain}", dnsName);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to parse CSR for domain extraction");
+                throw new InvalidOperationException("Failed to parse CSR to extract domains", ex);
+            }
+
+            if (domains.Count == 0)
+            {
+                _logger.LogError("No DNS names found in CSR. CSR may be malformed or missing CN/SANs.");
+                throw new InvalidOperationException("No DNS names found in CSR (neither CN nor SANs)");
+            }
+
+            var identifiers = domains.Select(d => new Identifier { Type = "dns", Value = d }).ToList();
+            _logger.LogInformation("CSR domain extraction complete. Creating ACME order for {Count} domain(s): [{Domains}]",
+                identifiers.Count, string.Join(", ", domains));
+
+            return identifiers;
+        }
+
+        /// <summary>
         /// Processes ACME authorizations for domain validation
         /// Currently hardcoded to use DNS-01 challenge with Google DNS provider
         /// </summary>
@@ -345,7 +430,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 throw new InvalidOperationException("Missing or invalid authorization list in order payload.");
             }
 
-            var dnsVerifier = new DnsVerificationHelper(_logger);
+            var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
             var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation)>();
 
             // First pass: Create all DNS records

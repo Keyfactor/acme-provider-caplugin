@@ -46,7 +46,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 },
                 ["DnsProvider"] = new PropertyConfigInfo()
                 {
-                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1, Infoblox)",
+                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)",
                     Hidden = false,
                     DefaultValue = "Google",
                     Type = "String"
@@ -128,6 +128,83 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Hidden = true,
                     DefaultValue = "",
                     Type = "String"
+                },
+
+                // RFC 2136 Dynamic DNS (BIND/Microsoft DNS)
+                ["Rfc2136_Server"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: Server hostname or IP address (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Rfc2136_Port"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: Server port (default 53) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "53",
+                    Type = "Number"
+                },
+                ["Rfc2136_Zone"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: Zone name (e.g., example.com) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Rfc2136_TsigKeyName"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: TSIG key name for authentication (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Rfc2136_TsigKey"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional)",
+                    Hidden = true,
+                    DefaultValue = "",
+                    Type = "Secret"
+                },
+                ["Rfc2136_TsigAlgorithm"] = new PropertyConfigInfo()
+                {
+                    Comments = "RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional)",
+                    Hidden = false,
+                    DefaultValue = "hmac-sha256",
+                    Type = "String"
+                },
+
+                // DNS Verification Settings
+                ["DnsVerificationServer"] = new PropertyConfigInfo()
+                {
+                    Comments = "DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                }
+
+                //Infoblox DNS
+                ,
+                ["Infoblox_Host"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Infoblox_Username"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+                ["Infoblox_Password"] = new PropertyConfigInfo()
+                {
+                    Comments = "Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)",
+                    Hidden = true,
+                    DefaultValue = "",
+                    Type = "Secret"
                 }
 
                 //Infoblox DNS

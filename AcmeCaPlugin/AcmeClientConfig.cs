@@ -37,6 +37,23 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
         // Container Deployment Support
         public string AccountStoragePath { get; set; } = null;
+        // RFC 2136 Dynamic DNS (BIND)
+        public string Rfc2136_Server { get; set; } = null;
+        public int Rfc2136_Port { get; set; } = 53;
+        public string Rfc2136_Zone { get; set; } = null;
+        public string Rfc2136_TsigKeyName { get; set; } = null;
+        public string Rfc2136_TsigKey { get; set; } = null;
+        public string Rfc2136_TsigAlgorithm { get; set; } = "hmac-sha256";
+
+        // Infoblox DNS
+        public string Infoblox_Host { get; set; } = null;
+        public string Infoblox_Username { get; set; } = null;
+        public string Infoblox_Password { get; set; } = null;
+        public string Infoblox_WapiVersion { get; set; } = "2.12";
+        public bool Infoblox_IgnoreSslErrors { get; set; } = false;
+
+        // DNS Verification Settings
+        public string DnsVerificationServer { get; set; } = null;
 
     }
 }

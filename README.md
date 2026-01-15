@@ -53,13 +53,15 @@ This plugin has been tested and confirmed to work with the following ACME provid
 
 It is designed to be provider-agnostic and should work with any standards-compliant ACME server.
 
-### 🌐 Supported DNS Providers (Initial Release)
+### 🌐 Supported DNS Providers
 DNS-01 challenge automation is supported through the following providers:
 - **Google Cloud DNS**
 - **AWS Route 53**
 - **Azure DNS**
 - **Cloudflare**
 - **NS1**
+- **Infoblox**
+- **RFC 2136 Dynamic DNS** (BIND with TSIG authentication)
 
 Additional DNS providers can be added by extending the included `IDnsProvider` interface.
 
@@ -100,7 +102,7 @@ The Acme AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor custo
 This plugin automates DNS-01 challenges using pluggable DNS provider implementations. These providers create and remove TXT records to prove domain control to ACME servers.
 
 <details>
-<summary><strong>✅ Supported DNS Providers (Initial Release)</strong></summary>
+<summary><strong>✅ Supported DNS Providers</strong></summary>
 
 | Provider     | Auth Methods Supported                        | Config Keys Required                                  |
 |--------------|-----------------------------------------------|--------------------------------------------------------|
@@ -109,6 +111,8 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 | Azure DNS    | Client Secret or Managed Identity             | `Azure_TenantId`, `Azure_ClientId`, `Azure_ClientSecret`, `Azure_SubscriptionId` |
 | Cloudflare   | API Token                                     | `Cloudflare_ApiToken`                                  |
 | NS1          | API Key                                       | `Ns1_ApiKey`                                           |
+| Infoblox     | Username/Password (Basic Auth)                | `Infoblox_Host`, `Infoblox_Username`, `Infoblox_Password` |
+| RFC 2136     | TSIG Key (BIND)                               | `Rfc2136_Server`, `Rfc2136_Zone`, `Rfc2136_TsigKeyName`, `Rfc2136_TsigKey` |
 
 </details>
 
@@ -142,8 +146,76 @@ Each provider supports multiple credential strategies:
 - **Cloudflare**:  
   - ✅ **Bearer API Token** for zone-level DNS control
 
-- **NS1**:  
+- **NS1**:
   - ✅ **API Key** passed in header `X-NSONE-Key`
+
+- **Infoblox**:
+  - ✅ **Username/Password** (Basic Auth via WAPI REST API)
+  - Optional: `Infoblox_WapiVersion` (defaults to `2.12`)
+  - Optional: `Infoblox_IgnoreSslErrors` for self-signed certificates
+
+- **RFC 2136 (BIND)**:
+  - ✅ **TSIG Key** for secure dynamic DNS updates
+  - Supports algorithms: `hmac-md5`, `hmac-sha1`, `hmac-sha256`, `hmac-sha384`, `hmac-sha512`
+  - Default algorithm: `hmac-sha256` (recommended)
+  - Optional: `Rfc2136_Port` (defaults to `53`)
+
+</details>
+
+<details>
+<summary><strong>🏢 On-Premise DNS (RFC 2136)</strong></summary>
+
+The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers that support dynamic updates, including:
+
+- **BIND** (Berkeley Internet Name Domain)
+- **PowerDNS** (with dynamic update support)
+- Any DNS server supporting RFC 2136 with TSIG authentication
+
+#### Configuration Requirements
+
+| Field | Description | Required |
+|-------|-------------|----------|
+| `Rfc2136_Server` | DNS server hostname or IP address | ✅ Yes |
+| `Rfc2136_Zone` | DNS zone to update (e.g., `example.com`) | ✅ Yes |
+| `Rfc2136_TsigKeyName` | TSIG key name (e.g., `acme-update-key`) | ✅ Yes |
+| `Rfc2136_TsigKey` | Base64-encoded TSIG secret key | ✅ Yes |
+| `Rfc2136_TsigAlgorithm` | TSIG algorithm (default: `hmac-sha256`) | Optional |
+| `Rfc2136_Port` | DNS server port (default: `53`) | Optional |
+| `DnsVerificationServer` | DNS server IP for verification (for private zones) | Optional |
+
+#### Generating TSIG Keys
+
+**For BIND:**
+bash
+
+**Generate a TSIG key using tsig-keygen (BIND 9.10+)**
+tsig-keygen -a hmac-sha256 acme-update-key
+
+**Output example:**
+key "acme-update-key" {
+    algorithm hmac-sha256;
+    secret "base64encodedkey==";
+};
+
+#### BIND Configuration Example
+
+Add to `named.conf`:
+
+key "acme-update-key" {
+    algorithm hmac-sha256;
+    secret "YourBase64EncodedKeyHere==";
+};
+
+zone "example.com" {
+    type master;
+    file "/var/named/example.com.zone";
+    allow-update { key "acme-update-key"; };
+};
+
+
+> ⚠️ **Security Note:** TSIG keys should be treated as secrets. Store them securely and use strong keys generated with cryptographically secure random number generators.
+
+> ⚠️ **Private DNS Zones:** For private/local DNS zones (e.g., `.local`), set `DnsVerificationServer` to your authoritative DNS server IP so the plugin can verify TXT record propagation.
 
 </details>
 
@@ -379,6 +451,7 @@ This section outlines all required ports, file access, permissions, and validati
 |----------|------|------------------------------|-----------------------------------------------------|
 | HTTPS    | 443  | ACME Directory URL           | Connect to the ACME CA for account, challenge, and certificate operations |
 | HTTPS    | 443  | DNS Provider APIs            | Used for DNS-01 challenge automation (Google DNS, AWS, etc.) |
+| TCP      | 53   | On-Premise DNS Server        | RFC 2136 dynamic updates (BIND/Microsoft DNS) - only if using RFC 2136 provider |
 
 </details>
 
@@ -606,7 +679,7 @@ spec:
         * **EabKid** - External Account Binding Key ID (optional) 
         * **EabHmacKey** - External Account Binding HMAC key (optional) 
         * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options Google, Cloudflare, AwsRoute53, Azure, Ns1) 
+        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox) 
         * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
         * **Google_ServiceAccountKeyJson** - Google Cloud DNS: Service account JSON key content (alternative to file path for containerized deployments) 
         * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
@@ -619,6 +692,16 @@ spec:
         * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
         * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
         * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
+        * **Rfc2136_Server** - RFC 2136 DNS: Server hostname or IP address (Optional) 
+        * **Rfc2136_Port** - RFC 2136 DNS: Server port (default 53) (Optional) 
+        * **Rfc2136_Zone** - RFC 2136 DNS: Zone name (e.g., example.com) (Optional) 
+        * **Rfc2136_TsigKeyName** - RFC 2136 DNS: TSIG key name for authentication (Optional) 
+        * **Rfc2136_TsigKey** - RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional) 
+        * **Rfc2136_TsigAlgorithm** - RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional) 
+        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.). 
+        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional) 
+        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional) 
+        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional) 
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 

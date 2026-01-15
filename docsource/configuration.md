@@ -67,7 +67,7 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 
 | Provider     | Auth Methods Supported                        | Config Keys Required                                  |
 |--------------|-----------------------------------------------|--------------------------------------------------------|
-| Google DNS   | Service Account Key or ADC                    | `Google_ServiceAccountKeyPath`, `Google_ProjectId`     |
+| Google DNS   | Service Account Key (file or JSON), or ADC    | `Google_ServiceAccountKeyPath`, `Google_ServiceAccountKeyJson`, `Google_ProjectId` |
 | AWS Route 53 | Access Key/Secret or IAM Role                 | `AwsRoute53_AccessKey`, `AwsRoute53_SecretKey`         |
 | Azure DNS    | Client Secret or Managed Identity             | `Azure_TenantId`, `Azure_ClientId`, `Azure_ClientSecret`, `Azure_SubscriptionId` |
 | Cloudflare   | API Token                                     | `Cloudflare_ApiToken`                                  |
@@ -91,8 +91,9 @@ This logic is handled by the `DnsVerificationHelper` class and ensures a high-co
 
 Each provider supports multiple credential strategies:
 
-- **Google DNS**:  
-  - ✅ **Service Account Key** (via `Google_ServiceAccountKeyPath`)  
+- **Google DNS**:
+  - ✅ **Service Account Key File** (via `Google_ServiceAccountKeyPath`)
+  - ✅ **Service Account Key JSON** (via `Google_ServiceAccountKeyJson` - paste JSON directly)
   - ✅ **Application Default Credentials** (e.g., GCP Workload Identity or developer auth)
 
 - **AWS Route 53**:  
@@ -302,11 +303,16 @@ This ACME Gateway implementation uses a local file-based store to persist ACME a
 <details>
 <summary><strong>📁 Account Directory Structure</strong></summary>
 
-Each account is saved in its own directory within:
+Each account is saved in its own directory within the configured storage path:
 
 ```
-%APPDATA%\AcmeAccounts\{host}_{accountId}
+{AccountStoragePath}\{host}_{accountId}
 ```
+
+**Default paths:**
+- **Windows:** `%APPDATA%\AcmeAccounts\{host}_{accountId}`
+- **Containers (when APPDATA unavailable):** `./AcmeAccounts\{host}_{accountId}`
+- **Custom:** Set `AccountStoragePath` in the Gateway configuration
 
 Where:
 - `{host}` is the ACME directory host with dots replaced by dashes (e.g., `acme-zerossl-com`)
@@ -418,10 +424,10 @@ This section outlines all required ports, file access, permissions, and validati
 
 | Path                                               | Purpose                                      |
 |----------------------------------------------------|----------------------------------------------|
-| `%APPDATA%\AcmeAccounts\`                        | Default base path for ACME account storage   |
-| `AcmeAccounts\{account_id}\Registration_v2`      | Contains serialized ACME account metadata    |
-| `AcmeAccounts\{account_id}\Signer_v2`            | Contains the encrypted private signer key    |
-| `AcmeAccounts\default_{host}.txt`                 | Stores the default account pointer for a given directory |
+| `%APPDATA%\AcmeAccounts\` or `AccountStoragePath`  | Base path for ACME account storage (configurable) |
+| `{base}\{account_id}\Registration_v2`              | Contains serialized ACME account metadata    |
+| `{base}\{account_id}\Signer_v2`                    | Contains the encrypted private signer key    |
+| `{base}\default_{host}.txt`                        | Stores the default account pointer for a given directory |
 
 #### File Access & Permissions
 
@@ -431,7 +437,8 @@ This section outlines all required ports, file access, permissions, and validati
 | Account files            | Read/Write| `Read`, `Write`     |
 
 - Files may be optionally encrypted using AES if a passphrase is configured.
-- Ensure the service account under which the orchestrator runs has read/write access to `%APPDATA%` or the custom configured base path.
+- Ensure the service account under which the orchestrator runs has read/write access to the configured base path.
+- For containers, mount a persistent volume to the `AccountStoragePath` to preserve accounts across restarts.
 
 </details>
 
@@ -455,6 +462,61 @@ This section outlines all required ports, file access, permissions, and validati
 
 - **Future Considerations**:
   - Support for file-based or database-backed challenge persistence may be added to allow background sync to re-check and finalize challenge state.
+
+</details>
+
+---
+
+### Container Deployment
+
+This section covers configuration options specific to containerized deployments (Docker, Kubernetes, etc.).
+
+<details>
+<summary><strong>📁 Configurable Account Storage Path</strong></summary>
+
+By default, the plugin stores ACME accounts in `%APPDATA%\AcmeAccounts` on Windows. In containerized environments, use the `AccountStoragePath` configuration option:
+
+| Environment | Recommended Path |
+|-------------|------------------|
+| Docker/Kubernetes | `/data/AcmeAccounts` (mounted volume) |
+| Windows Container | `C:\AcmeData\AcmeAccounts` |
+
+If `AccountStoragePath` is not set and `%APPDATA%` is unavailable, the plugin defaults to `./AcmeAccounts` relative to the working directory.
+
+</details>
+
+<details>
+<summary><strong>🌐 Google Cloud DNS in Containers</strong></summary>
+
+For Google Cloud DNS in container environments, you have three authentication options:
+
+1. **Workload Identity (GKE)**: No explicit credentials needed; uses pod identity.
+2. **JSON key in config**: Paste the service account JSON directly into `Google_ServiceAccountKeyJson`.
+3. **Mounted JSON file**: Mount the service account key file and set `Google_ServiceAccountKeyPath`.
+
+</details>
+
+<details>
+<summary><strong>☸️ Kubernetes Deployment Considerations</strong></summary>
+
+When deploying in Kubernetes:
+
+1. **Persistent Storage**: Use a PersistentVolumeClaim for `AccountStoragePath` to preserve ACME accounts across pod restarts.
+2. **Cloud Provider Identity**: Leverage Workload Identity (GKE), IAM Roles for Service Accounts (EKS), or Pod Identity (AKS) for DNS provider authentication.
+
+**Example PersistentVolumeClaim:**
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: acme-accounts
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+```
 
 </details>
 

@@ -15,6 +15,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 case "google":
                     return new GoogleDnsProvider(
                         config.Google_ServiceAccountKeyPath,
+                        config.Google_ServiceAccountKeyJson,
                         config.Google_ProjectId
                     );
 

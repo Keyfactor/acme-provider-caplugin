@@ -15,6 +15,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
         // Google Cloud DNS
         public string Google_ServiceAccountKeyPath { get; set; } = null;
+        public string Google_ServiceAccountKeyJson { get; set; } = null;
         public string Google_ProjectId { get; set; } = null;
 
         // Cloudflare DNS
@@ -33,6 +34,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
         //IBM NS1 DNS Ns1_ApiKey
         public string Ns1_ApiKey { get; set; } = null;
+
+        // Container Deployment Support
+        public string AccountStoragePath { get; set; } = null;
 
     }
 }

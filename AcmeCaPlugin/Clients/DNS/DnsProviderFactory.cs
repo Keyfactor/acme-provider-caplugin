@@ -13,11 +13,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             switch (config.DnsProvider.Trim().ToLowerInvariant())
             {
                 case "google":
-                    return new GoogleDnsProvider(
-                        config.Google_ServiceAccountKeyPath,
-                        config.Google_ServiceAccountKeyJson,
-                        config.Google_ProjectId
-                    );
+
 
                 case "cloudflare":
                     return new CloudflareDnsProvider(

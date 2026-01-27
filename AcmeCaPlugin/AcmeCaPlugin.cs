@@ -64,6 +64,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         private static readonly ILogger _logger = LogHandler.GetClassLogger<AcmeCaPlugin>();
         private IAnyCAPluginConfigProvider Config { get; set; }
         private IDomainValidator _domainValidator;
+        private readonly IDomainValidatorFactory _validatorFactory;
 
         // Constants for better maintainability
         private const string DEFAULT_PRODUCT_ID = "default";
@@ -72,14 +73,63 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         private const string USER_AGENT = "KeyfactorAcmePlugin/1.0";
 
         /// <summary>
+        /// Default constructor for backward compatibility
+        /// </summary>
+        public AcmeCaPlugin() : this(null)
+        {
+        }
+
+        /// <summary>
+        /// Constructor with dependency injection support for domain validator factory
+        /// </summary>
+        /// <param name="validatorFactory">Factory to resolve domain validators from plugins</param>
+        public AcmeCaPlugin(IDomainValidatorFactory validatorFactory)
+        {
+            _validatorFactory = validatorFactory;
+        }
+
+        /// <summary>
         /// Initialize the plugin with configuration and certificate data reader
         /// </summary>
         public void Initialize(IAnyCAPluginConfigProvider configProvider, ICertificateDataReader certificateDataReader)
         {
             _logger.MethodEntry();
             Config = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
-            _domainValidator = new Dns01DomainValidator();
-            _domainValidator.Initialize(new DomainValidatorConfigProvider(configProvider.CAConnectionData));
+
+            // Try to use plugin-based domain validator if factory is available
+            if (_validatorFactory != null)
+            {
+                _logger.LogInformation("Using plugin-based domain validator resolution");
+                try
+                {
+                    // Resolve domain validator from plugin system
+                    _domainValidator = _validatorFactory.ResolveDomainValidator(
+                        domain: "*",  // Wildcard - let the factory choose the right provider
+                        validationType: DNS_CHALLENGE_TYPE
+                    );
+
+                    if (_domainValidator != null)
+                    {
+                        _domainValidator.Initialize(new DomainValidatorConfigProvider(configProvider.CAConnectionData));
+                        _logger.LogInformation("Successfully initialized domain validator from plugin: {ValidatorType}",
+                            _domainValidator.GetType().FullName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to resolve domain validator from plugin factory, falling back to embedded validator");
+                    _domainValidator = null;
+                }
+            }
+
+            // Fallback to embedded validator for backward compatibility
+            if (_domainValidator == null)
+            {
+                _logger.LogInformation("Using embedded Dns01DomainValidator (legacy mode)");
+                _domainValidator = new Dns01DomainValidator();
+                _domainValidator.Initialize(new DomainValidatorConfigProvider(configProvider.CAConnectionData));
+            }
+
             _logger.MethodExit();
         }
 

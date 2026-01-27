@@ -9,26 +9,45 @@
         <AssemblyName>AcmeCaPlugin</AssemblyName>
     </PropertyGroup>
     <ItemGroup>
+        <!-- Core ACME and CA Plugin dependencies -->
         <PackageReference Include="ACMESharpCore" Version="2.2.0.148" />
         <PackageReference Include="Autofac" Version="8.3.0" />
-        <PackageReference Include="AWSSDK.Core" Version="4.0.3.11" />
-        <PackageReference Include="AWSSDK.Route53" Version="4.0.8.8" />
-        <PackageReference Include="Azure.Identity" Version="1.14.0" />
-        <PackageReference Include="Azure.ResourceManager.Cdn" Version="1.4.0" />
-        <PackageReference Include="Azure.ResourceManager.Dns" Version="1.1.1" />
         <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
         <PackageReference Include="DnsClient" Version="1.8.0" />
-        <PackageReference Include="ARSoft.Tools.Net" Version="3.6.0" />
-        <PackageReference Include="Google.Apis.Dns.v1" Version="1.69.0.3753" />
         <PackageReference Include="Keyfactor.AnyGateway.IAnyCAPlugin" Version="3.3.0-PRERELEASE-78770-979f582005" />
         <PackageReference Include="Keyfactor.Logging" Version="1.1.1" />
         <PackageReference Include="Keyfactor.PKI" Version="5.5.0" />
         <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.5" />
-        <PackageReference Include="Nager.PublicSuffix" Version="3.5.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="System.Drawing.Common" Version="10.0.2" />
         <PackageReference Include="System.Net.Http.WinHttpHandler" Version="9.0.5" />
         <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.5" />
+
+        <!-- DNS Provider dependencies - REMOVE THESE after migrating all providers to plugins -->
+        <!-- TODO: These should be removed once all DNS providers are moved to separate plugin projects -->
+        <!-- Google DNS - MIGRATED to Keyfactor.DnsProvider.Google plugin -->
+        <!-- <PackageReference Include="Google.Apis.Dns.v1" Version="1.69.0.3753" /> -->
+
+        <!-- AWS Route53 - TODO: Migrate to plugin -->
+        <PackageReference Include="AWSSDK.Core" Version="4.0.3.11" />
+        <PackageReference Include="AWSSDK.Route53" Version="4.0.8.8" />
+
+        <!-- Azure DNS - TODO: Migrate to plugin -->
+        <PackageReference Include="Azure.Identity" Version="1.14.0" />
+        <PackageReference Include="Azure.ResourceManager.Cdn" Version="1.4.0" />
+        <PackageReference Include="Azure.ResourceManager.Dns" Version="1.1.1" />
+
+        <!-- RFC2136 - TODO: Migrate to plugin -->
+        <PackageReference Include="ARSoft.Tools.Net" Version="3.6.0" />
+
+        <!-- Cloudflare - TODO: Migrate to plugin (uses standard HTTP client) -->
+
+        <!-- NS1 - TODO: Migrate to plugin (uses standard HTTP client) -->
+
+        <!-- Infoblox - TODO: Migrate to plugin (uses standard HTTP client) -->
+
+        <!-- Public Suffix - TODO: Evaluate if needed in core or per-provider -->
+        <PackageReference Include="Nager.PublicSuffix" Version="3.5.0" />
     </ItemGroup>
     <ItemGroup>
         <None Update="manifest.json">

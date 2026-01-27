@@ -1,27 +1,28 @@
 ﻿// Copyright 2025 Keyfactor
 // Licensed under the Apache License, Version 2.0
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using ACMESharp.Authorizations;
+using ACMESharp.Protocol;
+using ACMESharp.Protocol.Resources;
 using Keyfactor.AnyGateway.Extensions;
+using Keyfactor.Extensions.CAPlugin.Acme.Clients.Acme;
+using Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS;
 using Keyfactor.Logging;
 using Keyfactor.PKI.Enums.EJBCA;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using System.Linq;
-using System.Net.Http;
-using ACMESharp.Authorizations;
-using Keyfactor.Extensions.CAPlugin.Acme.Clients.Acme;
-using System.Threading;
-using ACMESharp.Protocol.Resources;
-using ACMESharp.Protocol;
-using System.Text;
-using Keyfactor.Extensions.CAPlugin.Acme.Clients.DNS;
-using System.Text.RegularExpressions;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Pkcs;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using static Org.BouncyCastle.Math.EC.ECCurve;
 
 namespace Keyfactor.Extensions.CAPlugin.Acme
 {
@@ -62,6 +63,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
     {
         private static readonly ILogger _logger = LogHandler.GetClassLogger<AcmeCaPlugin>();
         private IAnyCAPluginConfigProvider Config { get; set; }
+        private IDomainValidator _domainValidator;
 
         // Constants for better maintainability
         private const string DEFAULT_PRODUCT_ID = "default";
@@ -76,6 +78,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             _logger.MethodEntry();
             Config = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
+            _domainValidator = new Dns01DomainValidator();
+            _domainValidator.Initialize(new DomainValidatorConfigProvider(configProvider.CAConnectionData));
             _logger.MethodExit();
         }
 
@@ -229,6 +233,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             EnrollmentType enrollmentType)
         {
             _logger.MethodEntry();
+
 
             if (string.IsNullOrWhiteSpace(csr))
                 throw new ArgumentException("CSR cannot be null or empty", nameof(csr));
@@ -471,31 +476,33 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
             var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation)>();
 
-            // First pass: Create all DNS records
+            // First pass: Create all DNS records using IDomainValidator
             foreach (var authzUrl in payload.Authorizations)
             {
                 var authz = await acmeClient.GetAuthorizationAsync(authzUrl);
 
-                // Skip if authorization is already valid (cached)
                 if (authz.Status == "valid")
                 {
                     _logger.LogInformation("Using cached authorization for {Domain}", authz.Identifier.Value);
                     continue;
                 }
 
-                // Find DNS-01 challenge
                 var challenge = authz.Challenges.FirstOrDefault(c => c.Type == DNS_CHALLENGE_TYPE);
                 if (challenge == null)
                     throw new InvalidOperationException($"{DNS_CHALLENGE_TYPE} challenge not available");
 
-                // Decode challenge validation details
                 var validation = acmeClient.DecodeChallengeValidation(authz, challenge) as Dns01ChallengeValidationDetails;
                 if (validation == null)
                     throw new InvalidOperationException($"Failed to decode {DNS_CHALLENGE_TYPE} challenge validation details");
 
-                // Create DNS record (will throw exception with details if it fails)
-                var dnsProvider = DnsProviderFactory.Create(config, _logger);
-                await dnsProvider.CreateRecordAsync(validation.DnsRecordName, validation.DnsRecordValue);
+                // Use IDomainValidator instead of DnsProviderFactory directly
+                var result = await _domainValidator.StageValidation(
+                    validation.DnsRecordName,
+                    validation.DnsRecordValue,
+                    CancellationToken.None);
+
+                if (!result.Success)
+                    throw new InvalidOperationException($"Failed to stage DNS validation: {result.ErrorMessage}");
 
                 _logger.LogInformation("Created DNS record {RecordName} for domain {Domain}",
                     validation.DnsRecordName, authz.Identifier.Value);
@@ -503,42 +510,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 pendingChallenges.Add((authz, challenge, validation));
             }
 
-            // Second pass: Wait for DNS propagation and submit challenges
+            // Second pass: Wait for propagation and submit challenges
+            // ... rest of your existing code ...
+
+            // Optional: Cleanup after challenges complete
             foreach (var (authz, challenge, validation) in pendingChallenges)
             {
-                // Skip external DNS verification for Infoblox since it cannot ping external DNS providers
-                bool isInfoblox = config.DnsProvider?.Trim().Equals("infoblox", StringComparison.OrdinalIgnoreCase) ?? false;
-
-                if (isInfoblox)
-                {
-                    _logger.LogInformation("Skipping external DNS propagation check for Infoblox provider for {Domain}. Adding short delay...", authz.Identifier.Value);
-                    // Add a short delay to allow Infoblox to process the record internally
-                    await Task.Delay(TimeSpan.FromSeconds(5));
-                }
-                else
-                {
-                    _logger.LogInformation("Waiting for DNS propagation for {Domain}...", authz.Identifier.Value);
-
-                    // Wait for DNS propagation with verification
-                    var propagated = await dnsVerifier.WaitForDnsPropagationAsync(
-                        validation.DnsRecordName,
-                        validation.DnsRecordValue,
-                        minimumServers: 3 // Require at least 3 DNS servers to confirm
-                    );
-
-                    if (!propagated)
-                    {
-                        _logger.LogWarning("DNS record may not have fully propagated for {Domain}. Proceeding anyway...",
-                            authz.Identifier.Value);
-
-                        // Optional: Add a final delay as fallback
-                        await Task.Delay(TimeSpan.FromSeconds(30));
-                    }
-                }
-
-                // Submit challenge response
-                _logger.LogInformation("Submitting challenge for {Domain}", authz.Identifier.Value);
-                await acmeClient.AnswerChallengeAsync(challenge);
+                await _domainValidator.CleanupValidation(validation.DnsRecordName, CancellationToken.None);
             }
         }
 

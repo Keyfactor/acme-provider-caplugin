@@ -262,6 +262,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Create order
                 var order = await acmeClient.CreateOrderAsync(identifiers, null);
 
+                _logger.LogInformation("Order created. OrderUrl: {OrderUrl}, Status: {Status}",
+                    order.OrderUrl, order.Payload?.Status);
+
                 // Store pending order immediately
                 var accountId = accountDetails.Kid.Split('/').Last();
 
@@ -271,26 +274,33 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Finalize with original CSR bytes
                 order = await acmeClient.FinalizeOrderAsync(order, csrBytes);
 
+                // Extract order identifier (path only) for database storage
+                var orderIdentifier = ExtractOrderIdentifier(order.OrderUrl);
+
                 // If order is valid immediately, download cert
                 if (order.Payload?.Status == "valid" && !string.IsNullOrEmpty(order.Payload.Certificate))
                 {
                     var certBytes = await acmeClient.GetCertificateAsync(order);
                     var certPem = EncodeToPem(certBytes, "CERTIFICATE");
 
+                    _logger.LogInformation("✅ Enrollment completed successfully. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: GENERATED",
+                        order.OrderUrl, orderIdentifier);
+
                     return new EnrollmentResult
                     {
-                        CARequestID = order.Payload.Finalize,
+                        CARequestID = orderIdentifier,
                         Certificate = certPem,
                         Status = (int)EndEntityStatus.GENERATED
                     };
                 }
                 else
                 {
-                    _logger.LogInformation("⏳ Order not valid yet — will be synced later. Status: {Status}", order.Payload?.Status);
+                    _logger.LogInformation("⏳ Order not valid yet — will be synced later. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: {Status}",
+                        order.OrderUrl, orderIdentifier, order.Payload?.Status);
                     // Order stays saved for next sync
                     return new EnrollmentResult
                     {
-                        CARequestID = order.Payload.Finalize,
+                        CARequestID = orderIdentifier,
                         Status = (int)EndEntityStatus.FAILED,
                         StatusMessage = "Could not retrieve order in allowed time."
                     };
@@ -313,6 +323,34 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         }
 
 
+
+        /// <summary>
+        /// Extracts the order path from the full ACME order URL for use as a unique identifier.
+        /// This removes the scheme, host, and port, keeping only the path portion.
+        /// </summary>
+        /// <param name="orderUrl">Full order URL (e.g., https://dv.acme-v02.api.pki.goog/order/ABC123)</param>
+        /// <returns>Order path without leading slash (e.g., "order/ABC123")</returns>
+        /// <example>
+        /// Input: "https://dv.acme-v02.api.pki.goog/order/IlYl06mPl5VcAQpx3pzR6w"
+        /// Output: "order/IlYl06mPl5VcAQpx3pzR6w"
+        /// </example>
+        private static string ExtractOrderIdentifier(string orderUrl)
+        {
+            if (string.IsNullOrWhiteSpace(orderUrl))
+                return orderUrl;
+
+            try
+            {
+                var uri = new Uri(orderUrl);
+                // Remove leading slash and return the path
+                return uri.AbsolutePath.TrimStart('/');
+            }
+            catch (Exception)
+            {
+                // If URL parsing fails, return the original (shouldn't happen with valid ACME URLs)
+                return orderUrl;
+            }
+        }
 
         /// <summary>
         /// Extracts the domain name from X.509 subject string

@@ -560,8 +560,43 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 pendingChallenges.Add((authz, challenge, validation));
             }
 
-            // Second pass: Wait for propagation and submit challenges
-            // ... rest of your existing code ...
+            // Second pass: Wait for DNS propagation and submit challenges
+            foreach (var (authz, challenge, validation) in pendingChallenges)
+            {
+                // Skip external DNS verification for Infoblox since it cannot ping external DNS providers
+                bool isInfoblox = config.DnsProvider?.Trim().Equals("infoblox", StringComparison.OrdinalIgnoreCase) ?? false;
+
+                if (isInfoblox)
+                {
+                    _logger.LogInformation("Skipping external DNS propagation check for Infoblox provider for {Domain}. Adding short delay...", authz.Identifier.Value);
+                    // Add a short delay to allow Infoblox to process the record internally
+                    await Task.Delay(TimeSpan.FromSeconds(5));
+                }
+                else
+                {
+                    _logger.LogInformation("Waiting for DNS propagation for {Domain}...", authz.Identifier.Value);
+
+                    // Wait for DNS propagation with verification
+                    var propagated = await dnsVerifier.WaitForDnsPropagationAsync(
+                        validation.DnsRecordName,
+                        validation.DnsRecordValue,
+                        minimumServers: 3 // Require at least 3 DNS servers to confirm
+                    );
+
+                    if (!propagated)
+                    {
+                        _logger.LogWarning("DNS record may not have fully propagated for {Domain}. Proceeding anyway...",
+                            authz.Identifier.Value);
+
+                        // Optional: Add a final delay as fallback
+                        await Task.Delay(TimeSpan.FromSeconds(30));
+                    }
+                }
+
+                // Submit challenge response
+                _logger.LogInformation("Submitting challenge for {Domain}", authz.Identifier.Value);
+                await acmeClient.AnswerChallengeAsync(challenge);
+            }
 
             // Optional: Cleanup after challenges complete
             foreach (var (authz, challenge, validation) in pendingChallenges)

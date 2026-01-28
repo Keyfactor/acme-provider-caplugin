@@ -104,13 +104,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 {
                     // Resolve domain validator from plugin system
                     _domainValidator = _validatorFactory.ResolveDomainValidator(
-                        domain: "*",  // Wildcard - let the factory choose the right provider
+                        domain: "www.keyfactortestb.com",  // Wildcard - let the factory choose the right provider
                         validationType: DNS_CHALLENGE_TYPE
                     );
 
                     if (_domainValidator != null)
                     {
-                        _domainValidator.Initialize(new DomainValidatorConfigProvider(configProvider.CAConnectionData));
+                        //_domainValidator.Initialize(new DomainValidatorConfigProvider(configProvider.CAConnectionData));
                         _logger.LogInformation("Successfully initialized domain validator from plugin: {ValidatorType}",
                             _domainValidator.GetType().FullName);
                     }

@@ -1,6 +1,4 @@
-﻿using Amazon;
-
-namespace Keyfactor.Extensions.CAPlugin.Acme
+﻿namespace Keyfactor.Extensions.CAPlugin.Acme
 {
     public class AcmeClientConfig
     {

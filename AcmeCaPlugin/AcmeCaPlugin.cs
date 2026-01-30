@@ -61,7 +61,6 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
     {
         private static readonly ILogger _logger = LogHandler.GetClassLogger<AcmeCaPlugin>();
         private IAnyCAPluginConfigProvider Config { get; set; }
-        private IDomainValidator _domainValidator;
         private readonly IDomainValidatorFactory _validatorFactory;
 
         // Constants for better maintainability
@@ -88,7 +87,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             _logger.MethodEntry();
             Config = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
 
-            // Factory is now required - all DNS providers are externalized as plugins
+            // Validate that factory is available - validators will be resolved per-domain during enrollment
             if (_validatorFactory == null)
             {
                 var errorMsg = "IDomainValidatorFactory is required. DNS providers are now loaded as external plugins. " +
@@ -97,28 +96,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 throw new InvalidOperationException(errorMsg);
             }
 
-            _logger.LogInformation("Resolving domain validator from plugin system");
-
-            // Resolve domain validator from plugin system
-            _domainValidator = _validatorFactory.ResolveDomainValidator(
-                domain: "*",  // Wildcard - let the factory choose based on configuration
-                validationType: DNS_CHALLENGE_TYPE
-            );
-
-            if (_domainValidator == null)
-            {
-                var errorMsg = $"Failed to resolve domain validator for type '{DNS_CHALLENGE_TYPE}'. " +
-                    "Ensure the appropriate DNS provider plugin is deployed and configured.";
-                _logger.LogError(errorMsg);
-                throw new InvalidOperationException(errorMsg);
-            }
-
-            // Initialize the validator with configuration
-            var domainValidatorConfig = new DomainValidatorConfigProvider(configProvider.CAConnectionData);
-            _domainValidator.Initialize(domainValidatorConfig);
-
-            _logger.LogInformation("Successfully initialized domain validator from plugin: {ValidatorType}",
-                _domainValidator.GetType().FullName);
+            _logger.LogInformation("IDomainValidatorFactory available - domain validators will be resolved per-domain during enrollment");
 
             _logger.MethodExit();
         }
@@ -527,9 +505,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             }
 
             var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
-            var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation)>();
+            var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation, IDomainValidator validator)>();
 
-            // First pass: Create all DNS records using IDomainValidator
+            // First pass: Create all DNS records using per-domain IDomainValidator
             foreach (var authzUrl in payload.Authorizations)
             {
                 var authz = await acmeClient.GetAuthorizationAsync(authzUrl);
@@ -548,23 +526,42 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 if (validation == null)
                     throw new InvalidOperationException($"Failed to decode {DNS_CHALLENGE_TYPE} challenge validation details");
 
-                // Use IDomainValidator instead of DnsProviderFactory directly
-                var result = await _domainValidator.StageValidation(
+                // Resolve domain validator for this specific domain
+                var domain = authz.Identifier.Value;
+                _logger.LogInformation("Resolving domain validator for domain: {Domain}", domain);
+
+                var domainValidator = _validatorFactory.ResolveDomainValidator(domain, DNS_CHALLENGE_TYPE);
+                if (domainValidator == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to resolve domain validator for domain '{domain}'. " +
+                        "Ensure the appropriate DNS provider plugin is deployed and configured for this domain's zone.");
+                }
+
+                // Initialize the validator with configuration
+                var domainValidatorConfig = new DomainValidatorConfigProvider(Config.CAConnectionData);
+                domainValidator.Initialize(domainValidatorConfig);
+
+                _logger.LogInformation("Using domain validator: {ValidatorType} for domain: {Domain}",
+                    domainValidator.GetType().Name, domain);
+
+                // Stage the DNS validation
+                var result = await domainValidator.StageValidation(
                     validation.DnsRecordName,
                     validation.DnsRecordValue,
                     CancellationToken.None);
 
                 if (!result.Success)
-                    throw new InvalidOperationException($"Failed to stage DNS validation: {result.ErrorMessage}");
+                    throw new InvalidOperationException($"Failed to stage DNS validation for {domain}: {result.ErrorMessage}");
 
                 _logger.LogInformation("Created DNS record {RecordName} for domain {Domain}",
-                    validation.DnsRecordName, authz.Identifier.Value);
+                    validation.DnsRecordName, domain);
 
-                pendingChallenges.Add((authz, challenge, validation));
+                pendingChallenges.Add((authz, challenge, validation, domainValidator));
             }
 
             // Second pass: Wait for DNS propagation and submit challenges
-            foreach (var (authz, challenge, validation) in pendingChallenges)
+            foreach (var (authz, challenge, validation, validator) in pendingChallenges)
             {
                 // Skip external DNS verification for Infoblox since it cannot ping external DNS providers
                 bool isInfoblox = config.DnsProvider?.Trim().Equals("infoblox", StringComparison.OrdinalIgnoreCase) ?? false;
@@ -601,10 +598,21 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 await acmeClient.AnswerChallengeAsync(challenge);
             }
 
-            // Optional: Cleanup after challenges complete
-            foreach (var (authz, challenge, validation) in pendingChallenges)
+            // Cleanup: Remove DNS records using the per-domain validators
+            foreach (var (authz, challenge, validation, validator) in pendingChallenges)
             {
-                await _domainValidator.CleanupValidation(validation.DnsRecordName, CancellationToken.None);
+                try
+                {
+                    await validator.CleanupValidation(validation.DnsRecordName, CancellationToken.None);
+                    _logger.LogInformation("Cleaned up DNS record {RecordName} for domain {Domain}",
+                        validation.DnsRecordName, authz.Identifier.Value);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to cleanup DNS record {RecordName} for domain {Domain}",
+                        validation.DnsRecordName, authz.Identifier.Value);
+                    // Continue cleanup for other domains even if one fails
+                }
             }
         }
 

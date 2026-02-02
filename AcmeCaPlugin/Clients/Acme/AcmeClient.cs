@@ -489,6 +489,14 @@ namespace Keyfactor.Extensions.CAPlugin.Acme.Clients.Acme
             }
 
             _log.LogInformation("Challenge completed with status: {Status}", challenge.Status);
+
+            // Log error details if challenge failed
+            if (challenge.Status == "invalid" && challenge.Error != null)
+            {
+                var errorJson = JsonConvert.SerializeObject(challenge.Error);
+                _log.LogError("Challenge validation failed. ACME server error: {ErrorJson}", errorJson);
+            }
+
             return challenge;
         }
 

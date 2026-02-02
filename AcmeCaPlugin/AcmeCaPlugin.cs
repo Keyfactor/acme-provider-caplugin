@@ -538,10 +538,6 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                         "Ensure the appropriate DNS provider plugin is deployed and configured for this domain's zone.");
                 }
 
-                // Initialize the validator with configuration
-                var domainValidatorConfig = new DomainValidatorConfigProvider(Config.CAConnectionData);
-                domainValidator.Initialize(domainValidatorConfig);
-
                 _logger.LogInformation("Using domain validator: {ValidatorType} for domain: {Domain}",
                     domainValidator.GetType().Name, domain);
 
@@ -583,6 +579,22 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 else
                 {
                     _logger.LogInformation("Waiting for DNS propagation for {Domain}...", authz.Identifier.Value);
+                    _logger.LogDebug("Expected DNS record: {RecordName} = {RecordValue}",
+                        validation.DnsRecordName, validation.DnsRecordValue);
+
+                    // First, try to get authoritative DNS servers for the domain
+                    var baseDomain = authz.Identifier.Value;
+                    var authServers = await dnsVerifier.GetAuthoritativeDnsServersAsync(baseDomain);
+
+                    if (authServers.Any())
+                    {
+                        _logger.LogInformation("Found {Count} authoritative DNS servers for {Domain}: {Servers}",
+                            authServers.Count, baseDomain, string.Join(", ", authServers));
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Could not find authoritative DNS servers for {Domain}. This may indicate DNS delegation issues.", baseDomain);
+                    }
 
                     // Wait for DNS propagation with verification
                     var propagated = await dnsVerifier.WaitForDnsPropagationAsync(
@@ -593,17 +605,31 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
                     if (!propagated)
                     {
-                        _logger.LogWarning("DNS record may not have fully propagated for {Domain}. Proceeding anyway...",
+                        _logger.LogError("DNS record did not propagate to public DNS servers for {Domain}. " +
+                            "Possible causes: 1) Azure DNS zone not properly delegated, 2) NS records not configured, 3) Zone is private not public. " +
+                            "Check that your domain registrar has NS records pointing to Azure DNS nameservers.",
                             authz.Identifier.Value);
 
-                        // Optional: Add a final delay as fallback
-                        await Task.Delay(TimeSpan.FromSeconds(30));
+                        _logger.LogWarning("Adding extra 60s delay before submission, but challenge will likely fail...");
+
+                        // Add a longer delay as fallback for slow DNS providers
+                        await Task.Delay(TimeSpan.FromSeconds(60));
+                        _logger.LogInformation("Extra delay complete. Proceeding with challenge submission for {Domain}...", authz.Identifier.Value);
+                    }
+                    else
+                    {
+                        // Even if verification passed, add a small safety buffer to ensure ACME server's DNS resolvers also have it
+                        _logger.LogInformation("DNS propagation verified for {Domain}. Adding 10s safety buffer before challenge submission...", authz.Identifier.Value);
+                        await Task.Delay(TimeSpan.FromSeconds(10));
                     }
                 }
 
                 // Submit challenge response
-                _logger.LogInformation("Submitting challenge for {Domain}", authz.Identifier.Value);
+                _logger.LogInformation("Submitting challenge for {Domain} with record {RecordName}={RecordValue}",
+                    authz.Identifier.Value, validation.DnsRecordName, validation.DnsRecordValue);
                 await acmeClient.AnswerChallengeAsync(challenge);
+
+                _logger.LogDebug("Challenge submitted for {Domain}. ACME server will now validate the DNS record.", authz.Identifier.Value);
             }
 
             // Cleanup: Remove DNS records using the per-domain validators

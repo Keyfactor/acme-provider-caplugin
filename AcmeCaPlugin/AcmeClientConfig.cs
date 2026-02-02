@@ -53,5 +53,9 @@
         // DNS Verification Settings
         public string DnsVerificationServer { get; set; } = null;
 
+        // DNS Propagation Delay (in seconds) - wait this long after creating DNS records before checking propagation
+        // Azure DNS typically needs 60-120 seconds, AWS Route53 needs 60 seconds
+        public int DnsPropagationDelaySeconds { get; set; } = 60;
+
     }
 }

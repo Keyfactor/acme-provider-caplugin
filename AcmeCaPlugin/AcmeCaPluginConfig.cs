@@ -197,6 +197,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Hidden = false,
                     DefaultValue = "",
                     Type = "String"
+                },
+                ["DnsPropagationDelaySeconds"] = new PropertyConfigInfo()
+                {
+                    Comments = "Time in seconds to wait after creating DNS records before checking propagation. Azure DNS typically needs 60-120 seconds, AWS Route53 needs 60 seconds. Set to 0 to skip the delay.",
+                    Hidden = false,
+                    DefaultValue = "60",
+                    Type = "Number"
                 }
 
                 //Infoblox DNS

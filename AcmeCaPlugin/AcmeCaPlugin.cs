@@ -560,7 +560,15 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 pendingChallenges.Add((authz, challenge, validation, domainValidator));
             }
 
-            // Second pass: Wait for DNS propagation and submit challenges
+            // Wait for initial DNS propagation delay if configured
+            if (pendingChallenges.Count > 0 && config.DnsPropagationDelaySeconds > 0)
+            {
+                _logger.LogInformation("Waiting {DelaySeconds} seconds for DNS propagation before verification (configured delay)...",
+                    config.DnsPropagationDelaySeconds);
+                await Task.Delay(TimeSpan.FromSeconds(config.DnsPropagationDelaySeconds));
+            }
+
+            // Second pass: Verify DNS propagation and submit challenges
             foreach (var (authz, challenge, validation, validator) in pendingChallenges)
             {
                 // Skip external DNS verification for Infoblox since it cannot ping external DNS providers

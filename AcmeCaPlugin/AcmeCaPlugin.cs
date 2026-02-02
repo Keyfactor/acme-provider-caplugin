@@ -539,8 +539,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 }
 
                 // Initialize the validator with configuration
-                var domainValidatorConfig = new DomainValidatorConfigProvider(Config.CAConnectionData);
-                domainValidator.Initialize(domainValidatorConfig);
+                //var domainValidatorConfig = new DomainValidatorConfigProvider(Config.CAConnectionData);
+                //domainValidator.Initialize(domainValidatorConfig);
 
                 _logger.LogInformation("Using domain validator: {ValidatorType} for domain: {Domain}",
                     domainValidator.GetType().Name, domain);

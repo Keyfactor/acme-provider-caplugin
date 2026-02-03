@@ -46,7 +46,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 },
                 ["DnsProvider"] = new PropertyConfigInfo()
                 {
-                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)",
+                    Comments = "DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, Ns1, Rfc2136, Infoblox)",
                     Hidden = false,
                     DefaultValue = "Google",
                     Type = "String"
@@ -93,51 +93,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Type = "Secret"
                 },
 
-                // Azure DNS
-                ["Azure_ClientId"] = new PropertyConfigInfo()
-                {
-                    Comments = "Azure DNS: ClientId only if using Azure DNS and Not Managed Itentity in Azure (Optional)",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "Secret"
-                },
-                ["Azure_ClientSecret"] = new PropertyConfigInfo()
-                {
-                    Comments = "Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional)",
-                    Hidden = true,
-                    DefaultValue = "",
-                    Type = "Secret"
-                },
-                ["Azure_SubscriptionId"] = new PropertyConfigInfo()
-                {
-                    Comments = "Azure DNS: SubscriptionId only if using Azure DNS and Not Managed Itentity in Azure (Optional)",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "String"
-                },
-                ["Azure_TenantId"] = new PropertyConfigInfo()
-                {
-                    Comments = "Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional)",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "String"
-                },
-                ["AwsRoute53_AccessKey"] = new PropertyConfigInfo()
-                {
-                    Comments = "Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional)",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "String"
-                },
-                ["AwsRoute53_SecretKey"] = new PropertyConfigInfo()
-                {
-                    Comments = "Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional)",
-                    Hidden = true,
-                    DefaultValue = "",
-                    Type = "Secret"
-                }
                 //IBM NS1 DNS
-                ,
                 ["Ns1_ApiKey"] = new PropertyConfigInfo()
                 {
                     Comments = "Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)",

@@ -567,13 +567,14 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             // Second pass: Verify DNS propagation and submit challenges
             foreach (var (authz, challenge, validation, validator) in pendingChallenges)
             {
-                // Skip external DNS verification for Infoblox since it cannot ping external DNS providers
-                bool isInfoblox = config.DnsProvider?.Trim().Equals("infoblox", StringComparison.OrdinalIgnoreCase) ?? false;
+                // Skip external DNS verification if using private DNS (DnsVerificationServer is configured)
+                // Private DNS providers (like RFC2136, Infoblox) typically cannot be queried via public DNS servers
+                bool usePrivateDns = !string.IsNullOrWhiteSpace(config.DnsVerificationServer);
 
-                if (isInfoblox)
+                if (usePrivateDns)
                 {
-                    _logger.LogInformation("Skipping external DNS propagation check for Infoblox provider for {Domain}. Adding short delay...", authz.Identifier.Value);
-                    // Add a short delay to allow Infoblox to process the record internally
+                    _logger.LogInformation("Skipping external DNS propagation check for private DNS configuration for {Domain}. Adding short delay...", authz.Identifier.Value);
+                    // Add a short delay to allow the DNS provider to process the record internally
                     await Task.Delay(TimeSpan.FromSeconds(5));
                 }
                 else

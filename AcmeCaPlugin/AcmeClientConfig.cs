@@ -8,53 +8,13 @@
         public string EabHmacKey { get; set; } = null;
         public string SignerEncryptionPhrase{ get; set; } = null;
 
-        // Chosen DNS Provider
-        public string DnsProvider { get; set; } = null;
-
-        // Google Cloud DNS
-        public string Google_ServiceAccountKeyPath { get; set; } = null;
-        public string Google_ServiceAccountKeyJson { get; set; } = null;
-        public string Google_ProjectId { get; set; } = null;
-
-        // Cloudflare DNS
-        public string Cloudflare_ApiToken { get; set; } = null;
-
-
-        // Azure DNS
-        public string Azure_ClientId { get; set; } = null;
-        public string Azure_ClientSecret { get; set; } = null;
-        public string Azure_SubscriptionId { get; set; } = null;
-        public string Azure_TenantId { get; set; } = null;
-
-        // AWS Route53 
-        public string AwsRoute53_AccessKey { get; set; } = null;
-        public string AwsRoute53_SecretKey { get; set; } = null;
-
-        //IBM NS1 DNS Ns1_ApiKey
-        public string Ns1_ApiKey { get; set; } = null;
-
         // Container Deployment Support
         public string AccountStoragePath { get; set; } = null;
-        // RFC 2136 Dynamic DNS (BIND)
-        public string Rfc2136_Server { get; set; } = null;
-        public int Rfc2136_Port { get; set; } = 53;
-        public string Rfc2136_Zone { get; set; } = null;
-        public string Rfc2136_TsigKeyName { get; set; } = null;
-        public string Rfc2136_TsigKey { get; set; } = null;
-        public string Rfc2136_TsigAlgorithm { get; set; } = "hmac-sha256";
-
-        // Infoblox DNS
-        public string Infoblox_Host { get; set; } = null;
-        public string Infoblox_Username { get; set; } = null;
-        public string Infoblox_Password { get; set; } = null;
-        public string Infoblox_WapiVersion { get; set; } = "2.12";
-        public bool Infoblox_IgnoreSslErrors { get; set; } = false;
 
         // DNS Verification Settings
         public string DnsVerificationServer { get; set; } = null;
 
         // DNS Propagation Delay (in seconds) - wait this long after creating DNS records before checking propagation
-        // Azure DNS typically needs 60-120 seconds, AWS Route53 needs 60 seconds
         public int DnsPropagationDelaySeconds { get; set; } = 60;
 
     }

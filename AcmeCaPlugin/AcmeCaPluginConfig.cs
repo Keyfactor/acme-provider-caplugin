@@ -53,14 +53,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Type = "String"
                 },
 
-                // DNS Verification Settings
-                ["DnsVerificationServer"] = new PropertyConfigInfo()
-                {
-                    Comments = "DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).",
-                    Hidden = false,
-                    DefaultValue = "",
-                    Type = "String"
-                },
+                // DNS Propagation Settings
                 ["DnsPropagationDelaySeconds"] = new PropertyConfigInfo()
                 {
                     Comments = "Time in seconds to wait after creating DNS records before checking propagation. Set to 0 to skip the delay.",

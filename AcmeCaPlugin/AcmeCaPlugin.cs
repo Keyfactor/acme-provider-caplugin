@@ -504,7 +504,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 throw new InvalidOperationException("Missing or invalid authorization list in order payload.");
             }
 
-            var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
+            var dnsVerifier = new DnsVerificationHelper(_logger);
             var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation, IDomainValidator validator)>();
 
             // First pass: Create all DNS records using per-domain IDomainValidator
@@ -567,13 +567,15 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             // Second pass: Verify DNS propagation and submit challenges
             foreach (var (authz, challenge, validation, validator) in pendingChallenges)
             {
-                // Skip external DNS verification if using private DNS (DnsVerificationServer is configured)
+                // Skip external DNS verification for private DNS providers
                 // Private DNS providers (like RFC2136, Infoblox) typically cannot be queried via public DNS servers
-                bool usePrivateDns = !string.IsNullOrWhiteSpace(config.DnsVerificationServer);
+                var validatorTypeName = validator.GetType().Name.ToLowerInvariant();
+                bool isPrivateDnsProvider = validatorTypeName.Contains("rfc2136") || validatorTypeName.Contains("infoblox");
 
-                if (usePrivateDns)
+                if (isPrivateDnsProvider)
                 {
-                    _logger.LogInformation("Skipping external DNS propagation check for private DNS configuration for {Domain}. Adding short delay...", authz.Identifier.Value);
+                    _logger.LogInformation("Skipping external DNS propagation check for private DNS provider ({ValidatorType}) for {Domain}. Adding short delay...",
+                        validator.GetType().Name, authz.Identifier.Value);
                     // Add a short delay to allow the DNS provider to process the record internally
                     await Task.Delay(TimeSpan.FromSeconds(5));
                 }

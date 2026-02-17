@@ -329,3 +329,8 @@ ASALocalRun/
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
 /.claude
+MIGRATION-SUMMARY.md
+PLUGIN-MIGRATION-GUIDE.md
+ReflectFramework.csx
+InspectFramework/InspectFramework.csproj
+InspectFramework/Program.cs

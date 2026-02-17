@@ -67,8 +67,9 @@ public class CloudflareDnsProvider : IDnsProvider
         var json = await recordsResp.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
 
-        var recordId = doc.RootElement.GetProperty("result").EnumerateArray()
-            .FirstOrDefault().GetProperty("id").GetString();
+        var resultArray = doc.RootElement.GetProperty("result");
+        if (resultArray.GetArrayLength() == 0) return false;
+        var recordId = resultArray[0].GetProperty("id").GetString();
 
         if (recordId == null) return false;
 
@@ -86,9 +87,9 @@ public class CloudflareDnsProvider : IDnsProvider
 
         var json = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
-        var results = doc.RootElement.GetProperty("result").EnumerateArray();
-        if (!results.Any()) return null;
-        return results.First().GetProperty("id").GetString();
+        var resultArray = doc.RootElement.GetProperty("result");
+        if (resultArray.GetArrayLength() == 0) return null;
+        return resultArray[0].GetProperty("id").GetString();
     }
 
     private async Task<(string? zoneName, string? zoneId)> FindZoneForRecordAsync(string recordName)

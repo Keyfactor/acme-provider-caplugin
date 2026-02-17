@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 /// <summary>
 /// Google Cloud DNS provider implementation for managing DNS TXT records.
-/// Supports explicit Service Account key or Workload Identity (Application Default Credentials).
+/// Supports explicit Service Account key (file or JSON), or Workload Identity (Application Default Credentials).
 /// </summary>
 public class GoogleDnsProvider : IDnsProvider
 {
@@ -18,19 +18,26 @@ public class GoogleDnsProvider : IDnsProvider
 
     /// <summary>
     /// Initializes a new instance of the GoogleDnsProvider class.
-    /// If serviceAccountKeyPath is null or empty, uses Application Default Credentials.
+    /// Credential resolution order: JSON key > File path > Application Default Credentials.
     /// </summary>
     /// <param name="serviceAccountKeyPath">Path to the Service Account JSON key file (optional)</param>
+    /// <param name="serviceAccountKeyJson">Service Account JSON key as a string (optional, for containerized deployments)</param>
     /// <param name="projectId">Google Cloud project ID containing the DNS zones</param>
-    public GoogleDnsProvider(string? serviceAccountKeyPath, string projectId)
+    public GoogleDnsProvider(string? serviceAccountKeyPath, string? serviceAccountKeyJson, string projectId)
     {
         _projectId = projectId;
 
         GoogleCredential credential;
 
-        if (!string.IsNullOrWhiteSpace(serviceAccountKeyPath))
+        if (!string.IsNullOrWhiteSpace(serviceAccountKeyJson))
         {
-            Console.WriteLine("✅ Using explicit Service Account JSON key.");
+            // JSON key provided directly (for container deployments)
+            Console.WriteLine("✅ Using Service Account JSON key from configuration.");
+            credential = GoogleCredential.FromJson(serviceAccountKeyJson);
+        }
+        else if (!string.IsNullOrWhiteSpace(serviceAccountKeyPath))
+        {
+            Console.WriteLine("✅ Using Service Account JSON key from file.");
             credential = GoogleCredential.FromFile(serviceAccountKeyPath);
         }
         else

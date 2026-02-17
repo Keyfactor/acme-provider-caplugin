@@ -39,13 +39,32 @@ namespace Keyfactor.Extensions.CAPlugin.Acme.Clients.Acme
 
         #region Constructor
 
-        public AccountManager(ILogger log, string passphrase = null)
+        public AccountManager(ILogger log, string passphrase = null, string storagePath = null)
         {
             _log = log;
             _passphrase = passphrase;
-            _basePath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "AcmeAccounts");
+
+            if (!string.IsNullOrWhiteSpace(storagePath))
+            {
+                // Use the explicitly configured path
+                _basePath = storagePath;
+            }
+            else
+            {
+                // Default: Use platform-appropriate path
+                var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                if (string.IsNullOrEmpty(appDataPath))
+                {
+                    // In containers, APPDATA may not be set; use current directory
+                    _basePath = Path.Combine(Directory.GetCurrentDirectory(), "AcmeAccounts");
+                }
+                else
+                {
+                    _basePath = Path.Combine(appDataPath, "AcmeAccounts");
+                }
+            }
+
+            _log.LogDebug("Account storage path configured: {BasePath}", _basePath);
         }
 
         #endregion

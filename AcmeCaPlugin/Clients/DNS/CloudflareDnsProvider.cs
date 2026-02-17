@@ -30,12 +30,9 @@ public class CloudflareDnsProvider : IDnsProvider
 
     public async Task<bool> CreateRecordAsync(string recordName, string txtValue)
     {
-        // 1) Determine apex zone
-        var zoneName = ExtractZoneFromRecord(recordName);
-        var zoneId = await GetZoneIdAsync(zoneName);
-        if (zoneId == null) return false;
+        var (zoneName, zoneId) = await FindZoneForRecordAsync(recordName);
+        if (zoneId == null || zoneName == null) return false;
 
-        // 2) Get the relative record name for Cloudflare
         var relativeName = GetRelativeRecordName(recordName, zoneName);
 
         var payload = new
@@ -59,12 +56,9 @@ public class CloudflareDnsProvider : IDnsProvider
 
     public async Task<bool> DeleteRecordAsync(string recordName)
     {
-        // 1) Determine apex zone
-        var zoneName = ExtractZoneFromRecord(recordName);
-        var zoneId = await GetZoneIdAsync(zoneName);
-        if (zoneId == null) return false;
+        var (zoneName, zoneId) = await FindZoneForRecordAsync(recordName);
+        if (zoneId == null || zoneName == null) return false;
 
-        // 2) Get the relative record name for Cloudflare
         var relativeName = GetRelativeRecordName(recordName, zoneName);
 
         var recordsResp = await _httpClient.GetAsync($"zones/{zoneId}/dns_records?type=TXT&name={relativeName}");
@@ -92,21 +86,35 @@ public class CloudflareDnsProvider : IDnsProvider
 
         var json = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
-        return doc.RootElement.GetProperty("result").EnumerateArray()
-            .FirstOrDefault().GetProperty("id").GetString();
+        var results = doc.RootElement.GetProperty("result").EnumerateArray();
+        if (!results.Any()) return null;
+        return results.First().GetProperty("id").GetString();
     }
 
-    private string ExtractZoneFromRecord(string recordName)
+    private async Task<(string? zoneName, string? zoneId)> FindZoneForRecordAsync(string recordName)
     {
         if (string.IsNullOrWhiteSpace(recordName))
-            return string.Empty;
+            return (null, null);
 
         var parts = recordName.TrimEnd('.').Split('.');
-        if (parts.Length < 2)
-            return recordName;
 
-        // Use last two labels as default zone: e.g., "keyfactoracme.com"
-        return string.Join(".", parts.Skip(parts.Length - 2));
+        // Try progressively shorter domain parts to find the actual zone
+        // e.g., for "_acme-challenge.www.keyfactor.ssl4saas.com", try:
+        //   - www.keyfactor.ssl4saas.com
+        //   - keyfactor.ssl4saas.com
+        //   - ssl4saas.com
+        for (int i = 1; i < parts.Length - 1; i++)
+        {
+            var candidateZone = string.Join(".", parts.Skip(i));
+            var zoneId = await GetZoneIdAsync(candidateZone);
+            if (zoneId != null)
+            {
+                Console.WriteLine($"Found zone: {candidateZone} (id: {zoneId})");
+                return (candidateZone, zoneId);
+            }
+        }
+
+        return (null, null);
     }
 
     private string GetRelativeRecordName(string recordName, string zoneName)

@@ -22,6 +22,7 @@ using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Pkcs;
+using System.Security.Cryptography;
 
 namespace Keyfactor.Extensions.CAPlugin.Acme
 {
@@ -262,6 +263,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Create order
                 var order = await acmeClient.CreateOrderAsync(identifiers, null);
 
+                _logger.LogInformation("Order created. OrderUrl: {OrderUrl}, Status: {Status}",
+                    order.OrderUrl, order.Payload?.Status);
+
+                // Extract order identifier BEFORE finalization to ensure we use the original order URL
+                var orderIdentifier = ExtractOrderIdentifier(order.OrderUrl);
+
                 // Store pending order immediately
                 var accountId = accountDetails.Kid.Split('/').Last();
 
@@ -277,20 +284,24 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     var certBytes = await acmeClient.GetCertificateAsync(order);
                     var certPem = EncodeToPem(certBytes, "CERTIFICATE");
 
+                    _logger.LogInformation("✅ Enrollment completed successfully. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: GENERATED",
+                        order.OrderUrl, orderIdentifier);
+
                     return new EnrollmentResult
                     {
-                        CARequestID = order.Payload.Finalize,
+                        CARequestID = orderIdentifier,
                         Certificate = certPem,
                         Status = (int)EndEntityStatus.GENERATED
                     };
                 }
                 else
                 {
-                    _logger.LogInformation("⏳ Order not valid yet — will be synced later. Status: {Status}", order.Payload?.Status);
+                    _logger.LogInformation("⏳ Order not valid yet — will be synced later. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: {Status}",
+                        order.OrderUrl, orderIdentifier, order.Payload?.Status);
                     // Order stays saved for next sync
                     return new EnrollmentResult
                     {
-                        CARequestID = order.Payload.Finalize,
+                        CARequestID = orderIdentifier,
                         Status = (int)EndEntityStatus.FAILED,
                         StatusMessage = "Could not retrieve order in allowed time."
                     };
@@ -313,6 +324,29 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         }
 
 
+
+        /// <summary>
+        /// Generates a fixed-length SHA256 hash of the ACME order URL for database storage.
+        /// Produces a consistent 40-char hex string regardless of URL length or ACME CA format.
+        /// The full order URL is logged separately during enrollment for traceability.
+        /// </summary>
+        private static string ExtractOrderIdentifier(string orderUrl)
+        {
+            if (string.IsNullOrWhiteSpace(orderUrl))
+                return orderUrl;
+
+            using (var sha256 = SHA256.Create())
+            {
+                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(orderUrl));
+                // Take first 20 bytes (40 hex chars) — fits in DB column and is collision-safe
+                var sb = new StringBuilder(40);
+                for (int i = 0; i < 20; i++)
+                {
+                    sb.Append(hashBytes[i].ToString("x2"));
+                }
+                return sb.ToString();
+            }
+        }
 
         /// <summary>
         /// Extracts the domain name from X.509 subject string

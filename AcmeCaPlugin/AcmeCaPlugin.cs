@@ -13,6 +13,7 @@ using Newtonsoft.Json;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Pkcs;
+using System.Security.Cryptography;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -301,6 +302,9 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 _logger.LogInformation("Order created. OrderUrl: {OrderUrl}, Status: {Status}",
                     order.OrderUrl, order.Payload?.Status);
 
+                // Extract order identifier BEFORE finalization to ensure we use the original order URL
+                var orderIdentifier = ExtractOrderIdentifier(order.OrderUrl);
+
                 // Store pending order immediately
                 var accountId = accountDetails.Kid.Split('/').Last();
 
@@ -309,9 +313,6 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
                 // Finalize with original CSR bytes
                 order = await acmeClient.FinalizeOrderAsync(order, csrBytes);
-
-                // Extract order identifier (path only) for database storage
-                var orderIdentifier = ExtractOrderIdentifier(order.OrderUrl);
 
                 // If order is valid immediately, download cert
                 if (order.Payload?.Status == "valid" && !string.IsNullOrEmpty(order.Payload.Certificate))
@@ -361,30 +362,25 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
 
         /// <summary>
-        /// Extracts the order path from the full ACME order URL for use as a unique identifier.
-        /// This removes the scheme, host, and port, keeping only the path portion.
+        /// Generates a fixed-length SHA256 hash of the ACME order URL for database storage.
+        /// Produces a consistent 40-char hex string regardless of URL length or ACME CA format.
+        /// The full order URL is logged separately during enrollment for traceability.
         /// </summary>
-        /// <param name="orderUrl">Full order URL (e.g., https://dv.acme-v02.api.pki.goog/order/ABC123)</param>
-        /// <returns>Order path without leading slash (e.g., "order/ABC123")</returns>
-        /// <example>
-        /// Input: "https://dv.acme-v02.api.pki.goog/order/IlYl06mPl5VcAQpx3pzR6w"
-        /// Output: "order/IlYl06mPl5VcAQpx3pzR6w"
-        /// </example>
         private static string ExtractOrderIdentifier(string orderUrl)
         {
             if (string.IsNullOrWhiteSpace(orderUrl))
                 return orderUrl;
 
-            try
+            using (var sha256 = SHA256.Create())
             {
-                var uri = new Uri(orderUrl);
-                // Remove leading slash and return the path
-                return uri.AbsolutePath.TrimStart('/');
-            }
-            catch (Exception)
-            {
-                // If URL parsing fails, return the original (shouldn't happen with valid ACME URLs)
-                return orderUrl;
+                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(orderUrl));
+                // Take first 20 bytes (40 hex chars) — fits in DB column and is collision-safe
+                var sb = new StringBuilder(40);
+                for (int i = 0; i < 20; i++)
+                {
+                    sb.Append(hashBytes[i].ToString("x2"));
+                }
+                return sb.ToString();
             }
         }
 

@@ -1,4 +1,8 @@
-﻿# v1.2.0
+#v1.3.0
+* Containerization Changes for SaaS Environment
+* Fixed URL CaId Length issue
+ 
+ # v1.2.0
 * Added RFC 2136 Dynamic DNS Provider Support (BIND with TSIG authentication)
 * Added Infoblox DNS Provider Support
 * Added configurable DNS verification server for private/local DNS zones

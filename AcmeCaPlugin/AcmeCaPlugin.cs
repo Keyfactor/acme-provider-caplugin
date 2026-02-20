@@ -22,6 +22,7 @@ using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Pkcs;
+using System.Security.Cryptography;
 
 namespace Keyfactor.Extensions.CAPlugin.Acme
 {
@@ -62,6 +63,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
     {
         private static readonly ILogger _logger = LogHandler.GetClassLogger<AcmeCaPlugin>();
         private IAnyCAPluginConfigProvider Config { get; set; }
+        private AcmeClientConfig _config;
 
         // Constants for better maintainability
         private const string DEFAULT_PRODUCT_ID = "default";
@@ -76,6 +78,16 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             _logger.MethodEntry();
             Config = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
+            _config = GetConfig();
+            _logger.LogTrace("Enabled: {Enabled}", _config.Enabled);
+
+            if (!_config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping config validation...");
+                _logger.MethodExit();
+                return;
+            }
+
             _logger.MethodExit();
         }
 
@@ -88,6 +100,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         public async Task Ping()
         {
             _logger.MethodEntry();
+            if (!_config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping connectivity test...");
+                _logger.MethodExit();
+                return;
+            }
 
             HttpClient httpClient = null;
             try
@@ -165,6 +183,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             var rawData = JsonConvert.SerializeObject(connectionInfo);
             var config = JsonConvert.DeserializeObject<AcmeClientConfig>(rawData);
 
+            if (config != null && !config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping config validation...");
+                _logger.MethodExit();
+                return Task.CompletedTask;
+            }
+
             // Validate required configuration fields
             var missingFields = new List<string>();
             if (string.IsNullOrWhiteSpace(config?.DirectoryUrl))
@@ -230,6 +255,17 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             _logger.MethodEntry();
 
+            if (!_config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Enrollment rejected.");
+                _logger.MethodExit();
+                return new EnrollmentResult
+                {
+                    Status = (int)EndEntityStatus.FAILED,
+                    StatusMessage = "CA connector is disabled. Enable it in the CA configuration to perform enrollments."
+                };
+            }
+
             if (string.IsNullOrWhiteSpace(csr))
                 throw new ArgumentException("CSR cannot be null or empty", nameof(csr));
             if (string.IsNullOrWhiteSpace(subject))
@@ -262,6 +298,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Create order
                 var order = await acmeClient.CreateOrderAsync(identifiers, null);
 
+                _logger.LogInformation("Order created. OrderUrl: {OrderUrl}, Status: {Status}",
+                    order.OrderUrl, order.Payload?.Status);
+
+                // Extract order identifier BEFORE finalization to ensure we use the original order URL
+                var orderIdentifier = ExtractOrderIdentifier(order.OrderUrl);
+
                 // Store pending order immediately
                 var accountId = accountDetails.Kid.Split('/').Last();
 
@@ -277,20 +319,24 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     var certBytes = await acmeClient.GetCertificateAsync(order);
                     var certPem = EncodeToPem(certBytes, "CERTIFICATE");
 
+                    _logger.LogInformation("✅ Enrollment completed successfully. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: GENERATED",
+                        order.OrderUrl, orderIdentifier);
+
                     return new EnrollmentResult
                     {
-                        CARequestID = order.Payload.Finalize,
+                        CARequestID = orderIdentifier,
                         Certificate = certPem,
                         Status = (int)EndEntityStatus.GENERATED
                     };
                 }
                 else
                 {
-                    _logger.LogInformation("⏳ Order not valid yet — will be synced later. Status: {Status}", order.Payload?.Status);
+                    _logger.LogInformation("⏳ Order not valid yet — will be synced later. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: {Status}",
+                        order.OrderUrl, orderIdentifier, order.Payload?.Status);
                     // Order stays saved for next sync
                     return new EnrollmentResult
                     {
-                        CARequestID = order.Payload.Finalize,
+                        CARequestID = orderIdentifier,
                         Status = (int)EndEntityStatus.FAILED,
                         StatusMessage = "Could not retrieve order in allowed time."
                     };
@@ -313,6 +359,29 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         }
 
 
+
+        /// <summary>
+        /// Generates a fixed-length SHA256 hash of the ACME order URL for database storage.
+        /// Produces a consistent 40-char hex string regardless of URL length or ACME CA format.
+        /// The full order URL is logged separately during enrollment for traceability.
+        /// </summary>
+        private static string ExtractOrderIdentifier(string orderUrl)
+        {
+            if (string.IsNullOrWhiteSpace(orderUrl))
+                return orderUrl;
+
+            using (var sha256 = SHA256.Create())
+            {
+                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(orderUrl));
+                // Take first 20 bytes (40 hex chars) — fits in DB column and is collision-safe
+                var sb = new StringBuilder(40);
+                for (int i = 0; i < 20; i++)
+                {
+                    sb.Append(hashBytes[i].ToString("x2"));
+                }
+                return sb.ToString();
+            }
+        }
 
         /// <summary>
         /// Extracts the domain name from X.509 subject string

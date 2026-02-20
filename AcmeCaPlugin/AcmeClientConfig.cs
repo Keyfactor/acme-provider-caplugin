@@ -4,6 +4,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 {
     public class AcmeClientConfig
     {
+        public bool Enabled { get; set; } = true;
         public string DirectoryUrl { get; set; } = "https://acme-v02.api.letsencrypt.org/directory";
         public string Email { get; set; } = string.Empty;
         public string EabKid { get; set; } = null;

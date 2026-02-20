@@ -9,6 +9,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             return new Dictionary<string, PropertyConfigInfo>()
             {
+                ["Enabled"] = new PropertyConfigInfo()
+                {
+                    Comments = "Enable or disable this CA connector. When disabled, all operations (ping, enroll, sync) are skipped.",
+                    Hidden = false,
+                    DefaultValue = "true",
+                    Type = "Bool"
+                },
                 ["DirectoryUrl"] = new PropertyConfigInfo()
                 {
                     Comments = "ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.)",

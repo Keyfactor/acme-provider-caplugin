@@ -9,6 +9,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             return new Dictionary<string, PropertyConfigInfo>()
             {
+                ["Enabled"] = new PropertyConfigInfo()
+                {
+                    Comments = "Enable or disable this CA connector. When disabled, all operations (ping, enroll, sync) are skipped.",
+                    Hidden = false,
+                    DefaultValue = "true",
+                    Type = "Bool"
+                },
                 ["DirectoryUrl"] = new PropertyConfigInfo()
                 {
                     Comments = "ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.)",
@@ -60,9 +67,25 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     DefaultValue = "",
                     Type = "String"
                 },
+                ["Google_ServiceAccountKeyJson"] = new PropertyConfigInfo()
+                {
+                    Comments = "Google Cloud DNS: Service account JSON key content (alternative to file path for containerized deployments)",
+                    Hidden = true,
+                    DefaultValue = "",
+                    Type = "Secret"
+                },
                 ["Google_ProjectId"] = new PropertyConfigInfo()
                 {
                     Comments = "Google Cloud DNS: Project ID only if using Google DNS (Optional)",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
+                },
+
+                // Container Deployment
+                ["AccountStoragePath"] = new PropertyConfigInfo()
+                {
+                    Comments = "Path for ACME account storage. Defaults to %APPDATA%\\AcmeAccounts on Windows or ./AcmeAccounts in containers.",
                     Hidden = false,
                     DefaultValue = "",
                     Type = "String"

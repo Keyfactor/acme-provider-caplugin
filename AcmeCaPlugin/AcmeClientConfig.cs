@@ -4,6 +4,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 {
     public class AcmeClientConfig
     {
+        public bool Enabled { get; set; } = true;
         public string DirectoryUrl { get; set; } = "https://acme-v02.api.letsencrypt.org/directory";
         public string Email { get; set; } = string.Empty;
         public string EabKid { get; set; } = null;
@@ -15,6 +16,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
         // Google Cloud DNS
         public string Google_ServiceAccountKeyPath { get; set; } = null;
+        public string Google_ServiceAccountKeyJson { get; set; } = null;
         public string Google_ProjectId { get; set; } = null;
 
         // Cloudflare DNS
@@ -34,6 +36,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         //IBM NS1 DNS Ns1_ApiKey
         public string Ns1_ApiKey { get; set; } = null;
 
+        // Container Deployment Support
+        public string AccountStoragePath { get; set; } = null;
         // RFC 2136 Dynamic DNS (BIND)
         public string Rfc2136_Server { get; set; } = null;
         public int Rfc2136_Port { get; set; } = 53;

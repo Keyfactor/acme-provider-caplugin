@@ -65,7 +65,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme.Clients.Acme
             _email = config.Email;
             _eabKid = config.EabKid;
             _eabHmac = config.EabHmacKey;
-            _accountManager = new AccountManager(log,config.SignerEncryptionPhrase);
+            _accountManager = new AccountManager(log, config.SignerEncryptionPhrase, config.AccountStoragePath);
 
             _log.LogDebug("AcmeClientManager initialized for directory: {DirectoryUrl}", _directoryUrl);
         }

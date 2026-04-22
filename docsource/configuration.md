@@ -533,12 +533,12 @@ Here is how to obtain the root and intermediate CA certificates from supported A
 
 #### Let's Encrypt
 
-- **Root**: ISRG Root X1
-- **Intermediate**: R3
+Let's Encrypt periodically rotates its root and intermediate certificates. Always refer to their official certificates page for the current active chain.
 
 **How to Get:**
 - Browse to: https://letsencrypt.org/certificates/
-- Download both the **ISRG Root X1** and **R3 Intermediate Certificate (PEM format)**.
+- Identify the currently active **root** and **intermediate** certificates listed on that page.
+- Download both certificates in **PEM format**.
 
 #### Google Certificate Authority Service (CAS)
 

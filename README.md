@@ -674,6 +674,7 @@ spec:
 
         Populate using the configuration fields collected in the [requirements](#requirements) section.
 
+        * **Enabled** - Enable or disable this CA connector. When disabled, all operations (ping, enroll, sync) are skipped. 
         * **DirectoryUrl** - ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.) 
         * **Email** - Email for ACME account registration. 
         * **EabKid** - External Account Binding Key ID (optional) 

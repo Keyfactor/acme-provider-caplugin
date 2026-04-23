@@ -1,4 +1,4 @@
-﻿using Keyfactor.AnyGateway.Extensions;
+using Keyfactor.AnyGateway.Extensions;
 using System.Collections.Generic;
 
 namespace Keyfactor.Extensions.CAPlugin.Acme
@@ -9,6 +9,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             return new Dictionary<string, PropertyConfigInfo>()
             {
+                ["Enabled"] = new PropertyConfigInfo()
+                {
+                    Comments = "Enable or disable this CA connector. When disabled, all operations (ping, enroll, sync) are skipped.",
+                    Hidden = false,
+                    DefaultValue = "true",
+                    Type = "Bool"
+                },
                 ["DirectoryUrl"] = new PropertyConfigInfo()
                 {
                     Comments = "ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.)",
@@ -60,6 +67,15 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     Hidden = false,
                     DefaultValue = "60",
                     Type = "Number"
+                },
+
+                // DNS Verification Settings
+                ["DnsVerificationServer"] = new PropertyConfigInfo()
+                {
+                    Comments = "DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).",
+                    Hidden = false,
+                    DefaultValue = "",
+                    Type = "String"
                 }
 
             };

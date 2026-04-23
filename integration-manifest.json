@@ -14,6 +14,10 @@
         "carest": {
             "ca_plugin_config": [
                 {
+                    "name": "Enabled",
+                    "description": "Enable or disable this CA connector. When disabled, all operations (ping, enroll, sync) are skipped."
+                },
+                {
                     "name": "DirectoryUrl",
                     "description": "ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.)"
                 },

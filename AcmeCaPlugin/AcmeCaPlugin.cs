@@ -63,6 +63,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         private static readonly ILogger _logger = LogHandler.GetClassLogger<AcmeCaPlugin>();
         private IAnyCAPluginConfigProvider Config { get; set; }
         private readonly IDomainValidatorFactory _validatorFactory;
+        private AcmeClientConfig _config;
 
         // Constants for better maintainability
         private const string DEFAULT_PRODUCT_ID = "default";
@@ -87,6 +88,16 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             _logger.MethodEntry();
             Config = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
+
+            _config = GetConfig();
+            _logger.LogTrace("Enabled: {Enabled}", _config.Enabled);
+
+            if (!_config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping config validation...");
+                _logger.MethodExit();
+                return;
+            }
 
             // Validate that factory is available - validators will be resolved per-domain during enrollment
             if (_validatorFactory == null)
@@ -124,6 +135,12 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         public async Task Ping()
         {
             _logger.MethodEntry();
+            if (!_config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping connectivity test...");
+                _logger.MethodExit();
+                return;
+            }
 
             HttpClient httpClient = null;
             try
@@ -201,6 +218,13 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             var rawData = JsonConvert.SerializeObject(connectionInfo);
             var config = JsonConvert.DeserializeObject<AcmeClientConfig>(rawData);
 
+            if (config != null && !config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Skipping config validation...");
+                _logger.MethodExit();
+                return Task.CompletedTask;
+            }
+
             // Validate required configuration fields
             var missingFields = new List<string>();
             if (string.IsNullOrWhiteSpace(config?.DirectoryUrl))
@@ -266,6 +290,16 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             _logger.MethodEntry();
 
+            if (!_config.Enabled)
+            {
+                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Enrollment rejected.");
+                _logger.MethodExit();
+                return new EnrollmentResult
+                {
+                    Status = (int)EndEntityStatus.FAILED,
+                    StatusMessage = "CA connector is disabled. Enable it in the CA configuration to perform enrollments."
+                };
+            }
 
             if (string.IsNullOrWhiteSpace(csr))
                 throw new ArgumentException("CSR cannot be null or empty", nameof(csr));
@@ -500,7 +534,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 throw new InvalidOperationException("Missing or invalid authorization list in order payload.");
             }
 
-            var dnsVerifier = new DnsVerificationHelper(_logger);
+            var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
             var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation, IDomainValidator validator)>();
 
             // First pass: Create all DNS records using per-domain IDomainValidator

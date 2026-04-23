@@ -108,9 +108,55 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 throw new InvalidOperationException(errorMsg);
             }
 
+            ValidateConfigForEnrollment(_config);
+
             _logger.LogInformation("IDomainValidatorFactory available - domain validators will be resolved per-domain during enrollment");
 
             _logger.MethodExit();
+        }
+
+        /// <summary>
+        /// Fail-fast configuration sanity checks that run at Initialize time (when the connector is Enabled)
+        /// so operators see problems during save instead of on first enrollment attempt.
+        /// </summary>
+        private static void ValidateConfigForEnrollment(AcmeClientConfig config)
+        {
+            var problems = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(config.DirectoryUrl))
+            {
+                problems.Add($"{nameof(AcmeClientConfig.DirectoryUrl)} is required.");
+            }
+            else if (!Uri.TryCreate(config.DirectoryUrl, UriKind.Absolute, out var uri) ||
+                     (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp))
+            {
+                problems.Add($"{nameof(AcmeClientConfig.DirectoryUrl)} must be an absolute http(s) URL (got '{config.DirectoryUrl}').");
+            }
+
+            if (string.IsNullOrWhiteSpace(config.Email))
+            {
+                problems.Add($"{nameof(AcmeClientConfig.Email)} is required for ACME account registration.");
+            }
+
+            // EAB credentials must be supplied as a pair (or not at all)
+            var hasKid = !string.IsNullOrWhiteSpace(config.EabKid);
+            var hasHmac = !string.IsNullOrWhiteSpace(config.EabHmacKey);
+            if (hasKid != hasHmac)
+            {
+                problems.Add($"{nameof(AcmeClientConfig.EabKid)} and {nameof(AcmeClientConfig.EabHmacKey)} must both be provided together, or neither.");
+            }
+
+            if (config.DnsPropagationDelaySeconds < 0)
+            {
+                problems.Add($"{nameof(AcmeClientConfig.DnsPropagationDelaySeconds)} must be >= 0 (got {config.DnsPropagationDelaySeconds}).");
+            }
+
+            if (problems.Count > 0)
+            {
+                var joined = string.Join(" ", problems);
+                _logger.LogError("Configuration validation failed: {Problems}", joined);
+                throw new ArgumentException($"ACME CA connector configuration is invalid: {joined}");
+            }
         }
 
         /// <summary>
@@ -290,69 +336,81 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         {
             _logger.MethodEntry();
 
-            if (!_config.Enabled)
-            {
-                _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Enrollment rejected.");
-                _logger.MethodExit();
-                return new EnrollmentResult
-                {
-                    Status = (int)EndEntityStatus.FAILED,
-                    StatusMessage = "CA connector is disabled. Enable it in the CA configuration to perform enrollments."
-                };
-            }
-
-            if (string.IsNullOrWhiteSpace(csr))
-                throw new ArgumentException("CSR cannot be null or empty", nameof(csr));
-            if (string.IsNullOrWhiteSpace(subject))
-                throw new ArgumentException("Subject cannot be null or empty", nameof(subject));
-
-            csr = FormatCsrToSingleLine(csr);
-
+            using var flow = new FlowLogger(_logger, $"Enroll:{subject ?? "<null-subject>"}");
             HttpClient httpClient = null;
+            string orderIdentifier = null;
 
             try
             {
-                var config = GetConfig();
-                var handler = new LoggingHandler(new HttpClientHandler());
-                httpClient = new HttpClient(handler);
-                httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(USER_AGENT);
+                if (!_config.Enabled)
+                {
+                    flow.Fail("EnabledCheck", "CA connector is disabled");
+                    _logger.LogWarning("The CA is currently in the Disabled state. It must be Enabled to perform operations. Enrollment rejected.");
+                    return new EnrollmentResult
+                    {
+                        Status = (int)EndEntityStatus.FAILED,
+                        StatusMessage = $"CA connector is disabled. Enable it in the CA configuration to perform enrollments.\n\n{flow.GetSummary()}"
+                    };
+                }
 
-                // Init ACME client
-                var clientManager = new AcmeClientManager(_logger, config, httpClient);
-                var (protocolClient, accountDetails, signer) = await clientManager.CreateClientAsync();
-                var acmeClient = new AcmeClient(_logger, config, httpClient, protocolClient.Directory,
-                    new Clients.Acme.Account(accountDetails, signer));
+                flow.Step("ValidateInput", () =>
+                {
+                    if (string.IsNullOrWhiteSpace(csr))
+                        throw new ArgumentException("CSR cannot be null or empty", nameof(csr));
+                    if (string.IsNullOrWhiteSpace(subject))
+                        throw new ArgumentException("Subject cannot be null or empty", nameof(subject));
+                }, detail: subject);
 
-                // Decode CSR first so we can extract all domains from it
-                var csrBytes = Convert.FromBase64String(csr);
+                csr = flow.Step("FormatCsr", () => FormatCsrToSingleLine(csr));
 
-                // Extract all domains directly from CSR (CN + SANs) for the ACME order
-                // This ensures we authorize exactly what's in the CSR
-                var identifiers = ExtractDomainsFromCsr(csrBytes);
+                var config = flow.Step("LoadConfig", () => GetConfig(), detail: _config.DirectoryUrl);
 
-                // Create order
-                var order = await acmeClient.CreateOrderAsync(identifiers, null);
+                httpClient = flow.Step("CreateHttpClient", () =>
+                {
+                    var handler = new LoggingHandler(new HttpClientHandler());
+                    var c = new HttpClient(handler);
+                    c.DefaultRequestHeaders.UserAgent.TryParseAdd(USER_AGENT);
+                    return c;
+                });
+
+                var (protocolClient, accountDetails, signer) = await flow.StepAsync("InitAcmeAccount",
+                    async () =>
+                    {
+                        var clientManager = new AcmeClientManager(_logger, config, httpClient);
+                        return await clientManager.CreateClientAsync();
+                    },
+                    detail: config.DirectoryUrl);
+
+                var acmeClient = flow.Step("CreateAcmeClient", () => new AcmeClient(_logger, config, httpClient, protocolClient.Directory,
+                    new Clients.Acme.Account(accountDetails, signer)));
+
+                var csrBytes = flow.Step("DecodeCsr", () => Convert.FromBase64String(csr));
+
+                var identifiers = flow.Step("ExtractDomainsFromCsr", () => ExtractDomainsFromCsr(csrBytes),
+                    detail: $"will be populated per-step");
+
+                var order = await flow.StepAsync("CreateOrder",
+                    async () => await acmeClient.CreateOrderAsync(identifiers, null),
+                    detail: $"{identifiers.Count} identifier(s)");
 
                 _logger.LogInformation("Order created. OrderUrl: {OrderUrl}, Status: {Status}",
                     order.OrderUrl, order.Payload?.Status);
 
-                // Extract order identifier BEFORE finalization to ensure we use the original order URL
-                var orderIdentifier = ExtractOrderIdentifier(order.OrderUrl);
+                orderIdentifier = flow.Step("ExtractOrderIdentifier", () => ExtractOrderIdentifier(order.OrderUrl));
 
-                // Store pending order immediately
-                var accountId = accountDetails.Kid.Split('/').Last();
+                await ProcessAuthorizations(acmeClient, order, config, flow);
 
-                // Process challenges
-                await ProcessAuthorizations(acmeClient, order, config);
+                order = await flow.StepAsync("FinalizeOrder",
+                    async () => await acmeClient.FinalizeOrderAsync(order, csrBytes),
+                    detail: order.OrderUrl);
 
-                // Finalize with original CSR bytes
-                order = await acmeClient.FinalizeOrderAsync(order, csrBytes);
-
-                // If order is valid immediately, download cert
                 if (order.Payload?.Status == "valid" && !string.IsNullOrEmpty(order.Payload.Certificate))
                 {
-                    var certBytes = await acmeClient.GetCertificateAsync(order);
-                    var certPem = EncodeToPem(certBytes, "CERTIFICATE");
+                    var certBytes = await flow.StepAsync("DownloadCertificate",
+                        async () => await acmeClient.GetCertificateAsync(order));
+
+                    var certPem = flow.Step("EncodeCertificateToPem", () => EncodeToPem(certBytes, "CERTIFICATE"),
+                        detail: $"{certBytes?.Length ?? 0} bytes");
 
                     _logger.LogInformation("✅ Enrollment completed successfully. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: GENERATED",
                         order.OrderUrl, orderIdentifier);
@@ -361,29 +419,32 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     {
                         CARequestID = orderIdentifier,
                         Certificate = certPem,
-                        Status = (int)EndEntityStatus.GENERATED
+                        Status = (int)EndEntityStatus.GENERATED,
+                        StatusMessage = $"Enrollment completed successfully for {subject}.\n\n{flow.GetSummary()}"
                     };
                 }
                 else
                 {
+                    flow.Fail("CertificateNotReady", $"Order status: {order.Payload?.Status ?? "unknown"}");
                     _logger.LogInformation("⏳ Order not valid yet — will be synced later. OrderUrl: {OrderUrl}, CARequestID: {OrderId}, Status: {Status}",
                         order.OrderUrl, orderIdentifier, order.Payload?.Status);
-                    // Order stays saved for next sync
                     return new EnrollmentResult
                     {
                         CARequestID = orderIdentifier,
                         Status = (int)EndEntityStatus.FAILED,
-                        StatusMessage = "Could not retrieve order in allowed time."
+                        StatusMessage = $"Could not retrieve order in allowed time (order status: {order.Payload?.Status ?? "unknown"}).\n\n{flow.GetSummary()}"
                     };
                 }
             }
             catch (Exception ex)
             {
+                var detail = DescribeException(ex);
                 _logger.LogError(ex, "❌ Enrollment failed for subject: {Subject}", subject);
                 return new EnrollmentResult
                 {
+                    CARequestID = orderIdentifier,
                     Status = (int)EndEntityStatus.FAILED,
-                    StatusMessage = ex.Message
+                    StatusMessage = $"Enrollment failed: {detail}\n\n{flow.GetSummary()}"
                 };
             }
             finally
@@ -391,6 +452,52 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 httpClient?.Dispose();
                 _logger.MethodExit();
             }
+        }
+
+        /// <summary>
+        /// Unwraps aggregate/inner exceptions and produces a concise, operator-friendly description.
+        /// Prefers the innermost meaningful message; surfaces HTTP status where present; trims long bodies.
+        /// </summary>
+        internal static string DescribeException(Exception ex)
+        {
+            if (ex == null) return "Unknown error";
+
+            // Walk through AggregateException layers
+            while (ex is AggregateException agg && agg.InnerExceptions.Count == 1)
+            {
+                ex = agg.InnerExceptions[0];
+            }
+            if (ex is AggregateException aggMulti)
+            {
+                var inners = aggMulti.InnerExceptions.Select(e => DescribeException(e));
+                return "Multiple errors: " + string.Join(" | ", inners);
+            }
+
+            // Walk through TargetInvocationException / wrappers that only carry an inner
+            while (ex.InnerException != null && (
+                ex is System.Reflection.TargetInvocationException ||
+                ex.GetType() == typeof(Exception)))
+            {
+                ex = ex.InnerException;
+            }
+
+            var message = ex.Message ?? ex.GetType().Name;
+
+            // Attach HTTP status/body context if this is an HttpRequestException (or wraps one)
+            var http = ex as HttpRequestException ?? ex.InnerException as HttpRequestException;
+            if (http != null)
+            {
+                var httpMsg = http.Message ?? "";
+                if (!ReferenceEquals(http, ex))
+                    message = $"{message} [{httpMsg}]";
+            }
+
+            // Trim anything excessively long so the breadcrumb summary stays readable
+            const int maxLen = 400;
+            if (message.Length > maxLen)
+                message = message.Substring(0, maxLen) + "…";
+
+            return $"{ex.GetType().Name}: {message}";
         }
 
 
@@ -527,7 +634,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         /// <summary>
         /// Processes ACME authorizations with DNS verification before challenge submission
         /// </summary>
-        private async Task ProcessAuthorizations(AcmeClient acmeClient, OrderDetails order, AcmeClientConfig config)
+        private async Task ProcessAuthorizations(AcmeClient acmeClient, OrderDetails order, AcmeClientConfig config, FlowLogger flow)
         {
             if (order?.Payload is not Order payload || payload.Authorizations == null)
             {
@@ -537,149 +644,164 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
             var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation, IDomainValidator validator)>();
 
-            // First pass: Create all DNS records using per-domain IDomainValidator
-            foreach (var authzUrl in payload.Authorizations)
+            flow.Branch("StageDnsRecords");
+            try
             {
-                var authz = await acmeClient.GetAuthorizationAsync(authzUrl);
-
-                if (authz.Status == "valid")
+                foreach (var authzUrl in payload.Authorizations)
                 {
-                    _logger.LogInformation("Using cached authorization for {Domain}", authz.Identifier.Value);
-                    continue;
+                    var authz = await acmeClient.GetAuthorizationAsync(authzUrl);
+                    var domain = authz.Identifier.Value;
+
+                    if (authz.Status == "valid")
+                    {
+                        flow.Skip($"Stage:{domain}", "authorization already valid (cached)");
+                        _logger.LogInformation("Using cached authorization for {Domain}", domain);
+                        continue;
+                    }
+
+                    var challenge = authz.Challenges.FirstOrDefault(c => c.Type == DNS_CHALLENGE_TYPE);
+                    if (challenge == null)
+                    {
+                        flow.Fail($"Stage:{domain}", $"{DNS_CHALLENGE_TYPE} challenge not available");
+                        throw new InvalidOperationException($"{DNS_CHALLENGE_TYPE} challenge not available for {domain}");
+                    }
+
+                    var validation = acmeClient.DecodeChallengeValidation(authz, challenge) as Dns01ChallengeValidationDetails;
+                    if (validation == null)
+                    {
+                        flow.Fail($"Stage:{domain}", $"failed to decode {DNS_CHALLENGE_TYPE} challenge");
+                        throw new InvalidOperationException($"Failed to decode {DNS_CHALLENGE_TYPE} challenge validation details for {domain}");
+                    }
+
+                    var domainValidator = flow.Step($"ResolveValidator:{domain}",
+                        () =>
+                        {
+                            var v = _validatorFactory.ResolveDomainValidator(domain, DNS_CHALLENGE_TYPE);
+                            if (v == null)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Failed to resolve domain validator for domain '{domain}'. " +
+                                    "Ensure the appropriate DNS provider plugin is deployed and configured for this domain's zone.");
+                            }
+                            return v;
+                        });
+
+                    _logger.LogInformation("Using domain validator: {ValidatorType} for domain: {Domain}",
+                        domainValidator.GetType().Name, domain);
+
+                    await flow.StepAsync($"StageValidation:{domain}",
+                        async () =>
+                        {
+                            var result = await domainValidator.StageValidation(
+                                validation.DnsRecordName,
+                                validation.DnsRecordValue,
+                                CancellationToken.None);
+
+                            if (!result.Success)
+                                throw new InvalidOperationException($"Failed to stage DNS validation for {domain}: {result.ErrorMessage}");
+                        },
+                        detail: $"{validation.DnsRecordName} via {domainValidator.GetType().Name}");
+
+                    pendingChallenges.Add((authz, challenge, validation, domainValidator));
                 }
-
-                var challenge = authz.Challenges.FirstOrDefault(c => c.Type == DNS_CHALLENGE_TYPE);
-                if (challenge == null)
-                    throw new InvalidOperationException($"{DNS_CHALLENGE_TYPE} challenge not available");
-
-                var validation = acmeClient.DecodeChallengeValidation(authz, challenge) as Dns01ChallengeValidationDetails;
-                if (validation == null)
-                    throw new InvalidOperationException($"Failed to decode {DNS_CHALLENGE_TYPE} challenge validation details");
-
-                // Resolve domain validator for this specific domain
-                var domain = authz.Identifier.Value;
-                _logger.LogInformation("Resolving domain validator for domain: {Domain}", domain);
-
-                var domainValidator = _validatorFactory.ResolveDomainValidator(domain, DNS_CHALLENGE_TYPE);
-                if (domainValidator == null)
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to resolve domain validator for domain '{domain}'. " +
-                        "Ensure the appropriate DNS provider plugin is deployed and configured for this domain's zone.");
-                }
-
-                _logger.LogInformation("Using domain validator: {ValidatorType} for domain: {Domain}",
-                    domainValidator.GetType().Name, domain);
-
-                // Stage the DNS validation
-                var result = await domainValidator.StageValidation(
-                    validation.DnsRecordName,
-                    validation.DnsRecordValue,
-                    CancellationToken.None);
-
-                if (!result.Success)
-                    throw new InvalidOperationException($"Failed to stage DNS validation for {domain}: {result.ErrorMessage}");
-
-                _logger.LogInformation("Created DNS record {RecordName} for domain {Domain}",
-                    validation.DnsRecordName, domain);
-
-                pendingChallenges.Add((authz, challenge, validation, domainValidator));
+            }
+            finally
+            {
+                flow.EndBranch();
             }
 
-            // Wait for initial DNS propagation delay if configured
             if (pendingChallenges.Count > 0 && config.DnsPropagationDelaySeconds > 0)
             {
-                _logger.LogInformation("Waiting {DelaySeconds} seconds for DNS propagation before verification (configured delay)...",
-                    config.DnsPropagationDelaySeconds);
-                await Task.Delay(TimeSpan.FromSeconds(config.DnsPropagationDelaySeconds));
+                await flow.StepAsync("InitialPropagationDelay",
+                    async () => await Task.Delay(TimeSpan.FromSeconds(config.DnsPropagationDelaySeconds)),
+                    detail: $"{config.DnsPropagationDelaySeconds}s");
             }
 
-            // Second pass: Verify DNS propagation and submit challenges
-            foreach (var (authz, challenge, validation, validator) in pendingChallenges)
+            flow.Branch("VerifyAndSubmit");
+            try
             {
-                // Skip external DNS verification for private DNS providers
-                // Private DNS providers (like RFC2136, Infoblox) typically cannot be queried via public DNS servers
-                var validatorTypeName = validator.GetType().Name.ToLowerInvariant();
-                bool isPrivateDnsProvider = validatorTypeName.Contains("rfc2136") || validatorTypeName.Contains("infoblox");
-
-                if (isPrivateDnsProvider)
+                foreach (var (authz, challenge, validation, validator) in pendingChallenges)
                 {
-                    _logger.LogInformation("Skipping external DNS propagation check for private DNS provider ({ValidatorType}) for {Domain}. Adding short delay...",
-                        validator.GetType().Name, authz.Identifier.Value);
-                    // Add a short delay to allow the DNS provider to process the record internally
-                    await Task.Delay(TimeSpan.FromSeconds(5));
-                }
-                else
-                {
-                    _logger.LogInformation("Waiting for DNS propagation for {Domain}...", authz.Identifier.Value);
-                    _logger.LogDebug("Expected DNS record: {RecordName} = {RecordValue}",
-                        validation.DnsRecordName, validation.DnsRecordValue);
+                    var domain = authz.Identifier.Value;
+                    var validatorTypeName = validator.GetType().Name.ToLowerInvariant();
+                    bool isPrivateDnsProvider = validatorTypeName.Contains("rfc2136") || validatorTypeName.Contains("infoblox");
 
-                    // First, try to get authoritative DNS servers for the domain
-                    var baseDomain = authz.Identifier.Value;
-                    var authServers = await dnsVerifier.GetAuthoritativeDnsServersAsync(baseDomain);
-
-                    if (authServers.Any())
+                    if (isPrivateDnsProvider)
                     {
-                        _logger.LogInformation("Found {Count} authoritative DNS servers for {Domain}: {Servers}",
-                            authServers.Count, baseDomain, string.Join(", ", authServers));
+                        await flow.StepAsync($"PrivateDnsSettle:{domain}",
+                            async () => await Task.Delay(TimeSpan.FromSeconds(5)),
+                            detail: $"{validator.GetType().Name} - skipping public DNS check");
                     }
                     else
                     {
-                        _logger.LogWarning("Could not find authoritative DNS servers for {Domain}. This may indicate DNS delegation issues.", baseDomain);
+                        var authServers = await flow.StepAsync($"GetAuthoritativeDns:{domain}",
+                            async () => await dnsVerifier.GetAuthoritativeDnsServersAsync(domain));
+
+                        if (!authServers.Any())
+                        {
+                            _logger.LogWarning("Could not find authoritative DNS servers for {Domain}. This may indicate DNS delegation issues.", domain);
+                        }
+
+                        var propagated = await flow.StepAsync($"AwaitDnsPropagation:{domain}",
+                            async () => await dnsVerifier.WaitForDnsPropagationAsync(
+                                validation.DnsRecordName,
+                                validation.DnsRecordValue,
+                                minimumServers: 3),
+                            detail: $"{validation.DnsRecordName} across {authServers.Count} authoritative server(s)");
+
+                        if (!propagated)
+                        {
+                            _logger.LogError("DNS record did not propagate to public DNS servers for {Domain}. " +
+                                "Possible causes: 1) DNS zone not properly delegated, 2) NS records not configured, 3) Zone is private not public. " +
+                                "Check that your domain registrar has NS records pointing to your authoritative nameservers.", domain);
+
+                            await flow.StepAsync($"FallbackDelay:{domain}",
+                                async () => await Task.Delay(TimeSpan.FromSeconds(60)),
+                                detail: "propagation not verified - 60s fallback; challenge will likely fail");
+                        }
+                        else
+                        {
+                            await flow.StepAsync($"PropagationSafetyBuffer:{domain}",
+                                async () => await Task.Delay(TimeSpan.FromSeconds(10)),
+                                detail: "10s buffer for ACME resolvers");
+                        }
                     }
 
-                    // Wait for DNS propagation with verification
-                    var propagated = await dnsVerifier.WaitForDnsPropagationAsync(
-                        validation.DnsRecordName,
-                        validation.DnsRecordValue,
-                        minimumServers: 3 // Require at least 3 DNS servers to confirm
-                    );
-
-                    if (!propagated)
-                    {
-                        _logger.LogError("DNS record did not propagate to public DNS servers for {Domain}. " +
-                            "Possible causes: 1) Azure DNS zone not properly delegated, 2) NS records not configured, 3) Zone is private not public. " +
-                            "Check that your domain registrar has NS records pointing to Azure DNS nameservers.",
-                            authz.Identifier.Value);
-
-                        _logger.LogWarning("Adding extra 60s delay before submission, but challenge will likely fail...");
-
-                        // Add a longer delay as fallback for slow DNS providers
-                        await Task.Delay(TimeSpan.FromSeconds(60));
-                        _logger.LogInformation("Extra delay complete. Proceeding with challenge submission for {Domain}...", authz.Identifier.Value);
-                    }
-                    else
-                    {
-                        // Even if verification passed, add a small safety buffer to ensure ACME server's DNS resolvers also have it
-                        _logger.LogInformation("DNS propagation verified for {Domain}. Adding 10s safety buffer before challenge submission...", authz.Identifier.Value);
-                        await Task.Delay(TimeSpan.FromSeconds(10));
-                    }
+                    await flow.StepAsync($"SubmitChallenge:{domain}",
+                        async () => await acmeClient.AnswerChallengeAsync(challenge),
+                        detail: $"{validation.DnsRecordName}={validation.DnsRecordValue}");
                 }
-
-                // Submit challenge response
-                _logger.LogInformation("Submitting challenge for {Domain} with record {RecordName}={RecordValue}",
-                    authz.Identifier.Value, validation.DnsRecordName, validation.DnsRecordValue);
-                await acmeClient.AnswerChallengeAsync(challenge);
-
-                _logger.LogDebug("Challenge submitted for {Domain}. ACME server will now validate the DNS record.", authz.Identifier.Value);
+            }
+            finally
+            {
+                flow.EndBranch();
             }
 
-            // Cleanup: Remove DNS records using the per-domain validators
-            foreach (var (authz, challenge, validation, validator) in pendingChallenges)
+            flow.Branch("CleanupDnsRecords");
+            try
             {
-                try
+                foreach (var (authz, challenge, validation, validator) in pendingChallenges)
                 {
-                    await validator.CleanupValidation(validation.DnsRecordName, CancellationToken.None);
-                    _logger.LogInformation("Cleaned up DNS record {RecordName} for domain {Domain}",
-                        validation.DnsRecordName, authz.Identifier.Value);
+                    var domain = authz.Identifier.Value;
+                    try
+                    {
+                        await validator.CleanupValidation(validation.DnsRecordName, CancellationToken.None);
+                        flow.Step($"Cleanup:{domain}", detail: validation.DnsRecordName);
+                        _logger.LogInformation("Cleaned up DNS record {RecordName} for domain {Domain}",
+                            validation.DnsRecordName, domain);
+                    }
+                    catch (Exception ex)
+                    {
+                        flow.Fail($"Cleanup:{domain}", DescribeException(ex));
+                        _logger.LogWarning(ex, "Failed to cleanup DNS record {RecordName} for domain {Domain}",
+                            validation.DnsRecordName, domain);
+                        // Continue cleanup for other domains even if one fails
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to cleanup DNS record {RecordName} for domain {Domain}",
-                        validation.DnsRecordName, authz.Identifier.Value);
-                    // Continue cleanup for other domains even if one fails
-                }
+            }
+            finally
+            {
+                flow.EndBranch();
             }
         }
 

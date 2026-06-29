@@ -14,7 +14,7 @@
   <!-- TOC -->
   <a href="#support">
     <b>Support</b>
-  </a> 
+  </a>
   ·
   <a href="#requirements">
     <b>Requirements</b>
@@ -32,7 +32,6 @@
     <b>Related Integrations</b>
   </a>
 </p>
-
 
 The **Keyfactor ACME CA Gateway Plugin** enables certificate enrollment using the [ACME protocol (RFC 8555)](https://datatracker.ietf.org/doc/html/rfc8555), providing automated certificate issuance via any compliant Certificate Authority. This plugin is designed for **enrollment-only workflows** — it **does not support synchronization or revocation** of certificates.
 
@@ -91,7 +90,7 @@ The plugin uses a modular design that separates ACME communication logic and DNS
 The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later.
 
 ## Support
-The Acme AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com. 
+The Acme AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com.
 
 > To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
@@ -564,16 +563,16 @@ spec:
 
 2. On the server hosting the AnyCA Gateway REST, download and unzip the latest [Acme AnyCA Gateway REST plugin](https://github.com/Keyfactor/acme-provider-caplugin/releases/latest) from GitHub.
 
-3. Copy the unzipped directory (usually called `net6.0` or `net8.0`) to the Extensions directory:
+3. Copy the unzipped directory (usually called `net8.0` or `net10.0`) to the Extensions directory:
 
 
     ```shell
     Depending on your AnyCA Gateway REST version, copy the unzipped directory to one of the following locations:
-    Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net6.0\Extensions
     Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net8.0\Extensions
+    Program Files\Keyfactor\AnyCA Gateway\AnyGatewayREST\net10.0\Extensions
     ```
 
-    > The directory containing the Acme AnyCA Gateway REST plugin DLLs (`net6.0` or `net8.0`) can be named anything, as long as it is unique within the `Extensions` directory.
+    > The directory containing the Acme AnyCA Gateway REST plugin DLLs (`net8.0` or `net10.0`) can be named anything, as long as it is unique within the `Extensions` directory.
 
 4. Restart the AnyCA Gateway REST service.
 
@@ -586,123 +585,123 @@ spec:
     * **Gateway Registration**
 
         Each ACME CA issues certificates that chain to a specific intermediate and root certificate. For trust validation and proper integration with the Keyfactor Gateway, the following steps are required for **every ACME CA** used in your environment.
-
+        
         ---
-
+        
         ### 🔍 Retrieving Root and Intermediate Certificates
-
+        
         Here is how to obtain the root and intermediate CA certificates from supported ACME providers:
-
+        
         #### Let's Encrypt
-
+        
         Let's Encrypt periodically rotates its root and intermediate certificates. Always refer to their official certificates page for the current active chain.
-
+        
         **How to Get:**
         - Browse to: https://letsencrypt.org/certificates/
         - Identify the currently active **root** and **intermediate** certificates listed on that page.
         - Download both certificates in **PEM format**.
-
+        
         #### Google Certificate Authority Service (CAS)
-
+        
         - **Root** and **Intermediate** are custom per CA Pool.
-
+        
         **How to Get:**
         1. In the [Google Cloud Console](https://console.cloud.google.com/security/privateca), navigate to your CA pool.
         2. Click the CA name and go to the **Certificates** tab.
         3. Download the **root** and **intermediate** certificates for the issuing CA in PEM format.
-
+        
         #### ZeroSSL
-
+        
         - **Root**: USERTrust RSA Certification Authority
         - **Intermediate**: ZeroSSL RSA Domain Secure Site CA
-
+        
         **How to Get:**
         - Visit: https://zerossl.com
         - Download the full certificate chain in PEM format.
         - Extract individual certs if needed using OpenSSL or a text editor.
-
+        
         #### Buypass
-
+        
         - **Root**: Buypass Class 3 Root CA
         - **Intermediate**: Buypass Class 3 CA 1 / G2 (depends on issuance)
-
+        
         **How to Get:**
         - Go to: https://www.buypass.com
         - Download both root and intermediate in PEM or DER format.
-
+        
         ---
-
+        
         ### 🧩 Installing Certificates on the Keyfactor Gateway Server
-
+        
         Once downloaded, the **root and intermediate certificates must be installed** in the proper Windows certificate stores on the Gateway server.
-
+        
         #### Steps:
-
+        
         1. **Open** `certlm.msc` (Local Computer Certificates)
         2. Install the **Root CA certificate** into:
            - `Trusted Root Certification Authorities` → `Certificates`
         3. Install the **Intermediate CA certificate** into:
            - `Intermediate Certification Authorities` → `Certificates`
-
+        
         You can import certificates using the GUI or PowerShell:
-
+        
         ```powershell
         Import-Certificate -FilePath "C:\path\to\intermediate.crt" -CertStoreLocation "Cert:\LocalMachine\CA"
         Import-Certificate -FilePath "C:\path\to\root.crt" -CertStoreLocation "Cert:\LocalMachine\Root"
         ```
-
+        
         ---
-
+        
         ### 🔑 Using the Intermediate Thumbprint
-
+        
         When registering a new CA in Keyfactor Command:
-
+        
         - You must specify the **thumbprint** of the Intermediate CA certificate.
         - This is used to associate issued certificates with the correct issuing chain.
-
+        
         **How to Get the Thumbprint:**
-
+        
         1. In `certlm.msc`, open the certificate under **Intermediate Certification Authorities**.
         2. Go to **Details** tab → Scroll to **Thumbprint**.
         3. Copy the hex string (ignore spaces).
-
+        
         ---
-
+        
         ⚠️ All certificate chains must be trusted by the Gateway OS. If the intermediate is missing or untrusted, issuance will fail or returned certificates may not chain properly.
 
     * **CA Connection**
 
         Populate using the configuration fields collected in the [requirements](#requirements) section.
 
-        * **Enabled** - Enable or disable this CA connector. When disabled, all operations (ping, enroll, sync) are skipped. 
-        * **DirectoryUrl** - ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.) 
-        * **Email** - Email for ACME account registration. 
-        * **EabKid** - External Account Binding Key ID (optional) 
-        * **EabHmacKey** - External Account Binding HMAC key (optional) 
-        * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional) 
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox) 
-        * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional) 
-        * **Google_ServiceAccountKeyJson** - Google Cloud DNS: Service account JSON key content (alternative to file path for containerized deployments) 
-        * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional) 
-        * **AccountStoragePath** - Path for ACME account storage. Defaults to %APPDATA%\AcmeAccounts on Windows or ./AcmeAccounts in containers. 
-        * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional) 
-        * **Azure_ClientId** - Azure DNS: ClientId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_ClientSecret** - Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_SubscriptionId** - Azure DNS: SubscriptionId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **Azure_TenantId** - Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional) 
-        * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional) 
-        * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional) 
-        * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional) 
-        * **Rfc2136_Server** - RFC 2136 DNS: Server hostname or IP address (Optional) 
-        * **Rfc2136_Port** - RFC 2136 DNS: Server port (default 53) (Optional) 
-        * **Rfc2136_Zone** - RFC 2136 DNS: Zone name (e.g., example.com) (Optional) 
-        * **Rfc2136_TsigKeyName** - RFC 2136 DNS: TSIG key name for authentication (Optional) 
-        * **Rfc2136_TsigKey** - RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional) 
-        * **Rfc2136_TsigAlgorithm** - RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional) 
-        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.). 
-        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional) 
-        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional) 
-        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional) 
+        * **Enabled** - Enable or disable this CA connector. When disabled, all operations (ping, enroll, sync) are skipped.
+        * **DirectoryUrl** - ACME directory URL (e.g. Let's Encrypt, ZeroSSL, etc.)
+        * **Email** - Email for ACME account registration.
+        * **EabKid** - External Account Binding Key ID (optional)
+        * **EabHmacKey** - External Account Binding HMAC key (optional)
+        * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional)
+        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)
+        * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional)
+        * **Google_ServiceAccountKeyJson** - Google Cloud DNS: Service account JSON key content (alternative to file path for containerized deployments)
+        * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional)
+        * **AccountStoragePath** - Path for ACME account storage. Defaults to %APPDATA%\AcmeAccounts on Windows or ./AcmeAccounts in containers.
+        * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional)
+        * **Azure_ClientId** - Azure DNS: ClientId only if using Azure DNS and Not Managed Itentity in Azure (Optional)
+        * **Azure_ClientSecret** - Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional)
+        * **Azure_SubscriptionId** - Azure DNS: SubscriptionId only if using Azure DNS and Not Managed Itentity in Azure (Optional)
+        * **Azure_TenantId** - Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional)
+        * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional)
+        * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional)
+        * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)
+        * **Rfc2136_Server** - RFC 2136 DNS: Server hostname or IP address (Optional)
+        * **Rfc2136_Port** - RFC 2136 DNS: Server port (default 53) (Optional)
+        * **Rfc2136_Zone** - RFC 2136 DNS: Zone name (e.g., example.com) (Optional)
+        * **Rfc2136_TsigKeyName** - RFC 2136 DNS: TSIG key name for authentication (Optional)
+        * **Rfc2136_TsigKey** - RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional)
+        * **Rfc2136_TsigAlgorithm** - RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional)
+        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).
+        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)
+        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)
+        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 
@@ -710,11 +709,9 @@ spec:
 
 3. Follow the [official Keyfactor documentation](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Keyfactor.htm) to add each defined Certificate Authority to Keyfactor Command and import the newly defined Certificate Templates.
 
-
 ## Compatibility
 
 The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later.
-
 
 ## License
 

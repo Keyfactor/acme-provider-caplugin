@@ -642,7 +642,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             }
 
             var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
-            var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation, IDomainValidator validator)>();
+            var cnameResolver = new CnameResolver(_logger, config.DnsVerificationServer);
+            var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation, IDomainValidator validator, string recordName)>();
 
             flow.Branch("StageDnsRecords");
             try
@@ -673,36 +674,47 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                         throw new InvalidOperationException($"Failed to decode {DNS_CHALLENGE_TYPE} challenge validation details for {domain}");
                     }
 
+                    // Follow any chain of CNAME delegations to find the name the TXT record must
+                    // actually be created on. A CNAME cannot coexist with a TXT record at the same
+                    // name (RFC 1034), so a delegated challenge name is resolved to its terminal
+                    // target. Returns the original name unchanged when no delegation exists. The
+                    // resolved name is then used to select the DNS provider plugin, so a challenge
+                    // delegated into a zone on a different provider is routed to the plugin that
+                    // owns that zone.
+                    var recordName = await flow.StepAsync($"ResolveCname:{domain}",
+                        async () => await cnameResolver.ResolveChallengeTargetAsync(validation.DnsRecordName),
+                        detail: $"from {validation.DnsRecordName}");
+
                     var domainValidator = flow.Step($"ResolveValidator:{domain}",
                         () =>
                         {
-                            var v = _validatorFactory.ResolveDomainValidator(domain, DNS_CHALLENGE_TYPE);
+                            var v = _validatorFactory.ResolveDomainValidator(recordName, DNS_CHALLENGE_TYPE);
                             if (v == null)
                             {
                                 throw new InvalidOperationException(
-                                    $"Failed to resolve domain validator for domain '{domain}'. " +
-                                    "Ensure the appropriate DNS provider plugin is deployed and configured for this domain's zone.");
+                                    $"Failed to resolve domain validator for '{recordName}' (challenge for '{domain}'). " +
+                                    "Ensure the appropriate DNS provider plugin is deployed and configured for the zone that hosts the (possibly CNAME-delegated) challenge record.");
                             }
                             return v;
                         });
 
-                    _logger.LogInformation("Using domain validator: {ValidatorType} for domain: {Domain}",
-                        domainValidator.GetType().Name, domain);
+                    _logger.LogInformation("Using domain validator: {ValidatorType} for record: {RecordName} (domain: {Domain})",
+                        domainValidator.GetType().Name, recordName, domain);
 
                     await flow.StepAsync($"StageValidation:{domain}",
                         async () =>
                         {
                             var result = await domainValidator.StageValidation(
-                                validation.DnsRecordName,
+                                recordName,
                                 validation.DnsRecordValue,
                                 CancellationToken.None);
 
                             if (!result.Success)
                                 throw new InvalidOperationException($"Failed to stage DNS validation for {domain}: {result.ErrorMessage}");
                         },
-                        detail: $"{validation.DnsRecordName} via {domainValidator.GetType().Name}");
+                        detail: $"{recordName} via {domainValidator.GetType().Name}");
 
-                    pendingChallenges.Add((authz, challenge, validation, domainValidator));
+                    pendingChallenges.Add((authz, challenge, validation, domainValidator, recordName));
                 }
             }
             finally
@@ -720,7 +732,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             flow.Branch("VerifyAndSubmit");
             try
             {
-                foreach (var (authz, challenge, validation, validator) in pendingChallenges)
+                foreach (var (authz, challenge, validation, validator, recordName) in pendingChallenges)
                 {
                     var domain = authz.Identifier.Value;
                     var validatorTypeName = validator.GetType().Name.ToLowerInvariant();
@@ -735,19 +747,19 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                     else
                     {
                         var authServers = await flow.StepAsync($"GetAuthoritativeDns:{domain}",
-                            async () => await dnsVerifier.GetAuthoritativeDnsServersAsync(domain));
+                            async () => await dnsVerifier.GetAuthoritativeDnsServersAsync(recordName));
 
                         if (!authServers.Any())
                         {
-                            _logger.LogWarning("Could not find authoritative DNS servers for {Domain}. This may indicate DNS delegation issues.", domain);
+                            _logger.LogWarning("Could not find authoritative DNS servers for {RecordName}. This may indicate DNS delegation issues.", recordName);
                         }
 
                         var propagated = await flow.StepAsync($"AwaitDnsPropagation:{domain}",
                             async () => await dnsVerifier.WaitForDnsPropagationAsync(
-                                validation.DnsRecordName,
+                                recordName,
                                 validation.DnsRecordValue,
                                 minimumServers: 3),
-                            detail: $"{validation.DnsRecordName} across {authServers.Count} authoritative server(s)");
+                            detail: $"{recordName} across {authServers.Count} authoritative server(s)");
 
                         if (!propagated)
                         {
@@ -769,7 +781,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
                     await flow.StepAsync($"SubmitChallenge:{domain}",
                         async () => await acmeClient.AnswerChallengeAsync(challenge),
-                        detail: $"{validation.DnsRecordName}={validation.DnsRecordValue}");
+                        detail: $"{recordName}={validation.DnsRecordValue}");
                 }
             }
             finally
@@ -780,21 +792,21 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             flow.Branch("CleanupDnsRecords");
             try
             {
-                foreach (var (authz, challenge, validation, validator) in pendingChallenges)
+                foreach (var (authz, challenge, validation, validator, recordName) in pendingChallenges)
                 {
                     var domain = authz.Identifier.Value;
                     try
                     {
-                        await validator.CleanupValidation(validation.DnsRecordName, CancellationToken.None);
-                        flow.Step($"Cleanup:{domain}", detail: validation.DnsRecordName);
+                        await validator.CleanupValidation(recordName, CancellationToken.None);
+                        flow.Step($"Cleanup:{domain}", detail: recordName);
                         _logger.LogInformation("Cleaned up DNS record {RecordName} for domain {Domain}",
-                            validation.DnsRecordName, domain);
+                            recordName, domain);
                     }
                     catch (Exception ex)
                     {
                         flow.Fail($"Cleanup:{domain}", DescribeException(ex));
                         _logger.LogWarning(ex, "Failed to cleanup DNS record {RecordName} for domain {Domain}",
-                            validation.DnsRecordName, domain);
+                            recordName, domain);
                         // Continue cleanup for other domains even if one fails
                     }
                 }

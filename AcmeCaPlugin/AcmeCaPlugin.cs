@@ -500,7 +500,8 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
             }
 
             var dnsVerifier = new DnsVerificationHelper(_logger, config.DnsVerificationServer);
-            var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation)>();
+            var cnameResolver = new CnameResolver(_logger, config.DnsVerificationServer);
+            var pendingChallenges = new List<(Authorization authz, Challenge challenge, Dns01ChallengeValidationDetails validation, string recordName)>();
 
             // First pass: Create all DNS records
             foreach (var authzUrl in payload.Authorizations)
@@ -524,18 +525,24 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 if (validation == null)
                     throw new InvalidOperationException($"Failed to decode {DNS_CHALLENGE_TYPE} challenge validation details");
 
+                // Follow any CNAME delegation chain to find the name the TXT record must
+                // actually be created on. A CNAME cannot coexist with a TXT record at the
+                // same name (RFC 1034), so delegated challenge names must be resolved to
+                // their terminal target. Returns the original name if no delegation exists.
+                var recordName = await cnameResolver.ResolveChallengeTargetAsync(validation.DnsRecordName);
+
                 // Create DNS record (will throw exception with details if it fails)
                 var dnsProvider = DnsProviderFactory.Create(config, _logger);
-                await dnsProvider.CreateRecordAsync(validation.DnsRecordName, validation.DnsRecordValue);
+                await dnsProvider.CreateRecordAsync(recordName, validation.DnsRecordValue);
 
                 _logger.LogInformation("Created DNS record {RecordName} for domain {Domain}",
-                    validation.DnsRecordName, authz.Identifier.Value);
+                    recordName, authz.Identifier.Value);
 
-                pendingChallenges.Add((authz, challenge, validation));
+                pendingChallenges.Add((authz, challenge, validation, recordName));
             }
 
             // Second pass: Wait for DNS propagation and submit challenges
-            foreach (var (authz, challenge, validation) in pendingChallenges)
+            foreach (var (authz, challenge, validation, recordName) in pendingChallenges)
             {
                 // Skip external DNS verification for Infoblox since it cannot ping external DNS providers
                 bool isInfoblox = config.DnsProvider?.Trim().Equals("infoblox", StringComparison.OrdinalIgnoreCase) ?? false;
@@ -552,7 +559,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
 
                     // Wait for DNS propagation with verification
                     var propagated = await dnsVerifier.WaitForDnsPropagationAsync(
-                        validation.DnsRecordName,
+                        recordName,
                         validation.DnsRecordValue,
                         minimumServers: 3 // Require at least 3 DNS servers to confirm
                     );

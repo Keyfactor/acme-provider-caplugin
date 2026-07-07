@@ -1,4 +1,4 @@
-# v1.4.0
+# v2.0.0
 * Dns Plugin Support
 * Cname Proxy Support
   

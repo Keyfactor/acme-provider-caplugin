@@ -9,7 +9,7 @@
     "support_level": "kf-supported",
     "link_github": true,
     "update_catalog": true,
-    "gateway_framework": "24.2",
+    "gateway_framework": "26.2",
     "about": {
         "carest": {
             "ca_plugin_config": [

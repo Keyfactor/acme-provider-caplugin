@@ -51,7 +51,7 @@ The plugin uses a modular design that separates ACME communication logic and DNS
 
 ## Compatibility
 
-The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 24.2 and later.
+The Acme AnyCA Gateway REST plugin is compatible with the Keyfactor AnyCA Gateway REST 26.2 and later.
 
 
 ## Requirements

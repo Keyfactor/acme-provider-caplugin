@@ -39,9 +39,10 @@ Additional DNS providers can be added by extending the included `IDnsProvider` i
 2. Plugin initializes ACME client and creates a new order.
 3. For each domain:
    a. Retrieve DNS-01 challenge.
-   b. Use the configured DNS provider to publish challenge record.
-   c. Wait for DNS propagation and validate record.
-   d. Notify ACME provider to trigger validation.
+   b. Resolve any CNAME delegation: follow the CNAME chain from `_acme-challenge.<domain>` to its terminal target (see CNAME Delegation below).
+   c. Select the DNS provider plugin for the zone that owns the (resolved) record name and publish the challenge TXT record there.
+   d. Wait for DNS propagation and validate record.
+   e. Notify ACME provider to trigger validation.
 4. Once all challenges are valid, finalize the order using CSR.
 5. Download the signed certificate from ACME provider.
 6. Return PEM certificate to the Gateway.
@@ -83,6 +84,58 @@ This plugin automates DNS-01 challenges using pluggable DNS provider implementat
 Before submitting ACME challenges, the plugin verifies DNS propagation using multiple public resolvers (Google, Cloudflare, OpenDNS, Quad9). A record must be visible on **at least 3 servers** to proceed, with up to **3 retries** spaced by 10 seconds.
 
 This logic is handled by the `DnsVerificationHelper` class and ensures a high-confidence validation before proceeding.
+
+</details>
+
+<details>
+<summary><strong>🔗 CNAME Delegation (Proxy) Lookup</strong></summary>
+
+Many organizations do not want ACME automation to hold write access to their production DNS zone. The industry-standard pattern is to **delegate just the ACME challenge name** to a separate, isolated validation zone using a `CNAME` record. The plugin supports this transparently.
+
+#### Why delegate?
+
+A `CNAME` at `_acme-challenge.<domain>` points challenge validation at another zone. ACME automation then only needs write access to that isolated zone — never the production zone. A `CNAME` also cannot coexist with any other record type at the same name (RFC 1034), so the TXT record **must** be created at the CNAME's target, not at the original challenge name.
+
+#### How the plugin resolves it
+
+Before publishing the challenge record, the plugin runs the `CnameResolver`, which:
+
+1. Issues a DNS `CNAME` query for `_acme-challenge.<domain>`.
+2. **Follows the chain to its terminus.** Delegation can be nested multiple levels deep (`A → B → C → …`); the resolver re-queries at each hop and stops only when it reaches a name that has no further `CNAME`. That terminal name is where the TXT record is created.
+3. Returns the original name unchanged when **no** `CNAME` exists — so non-delegated domains behave exactly as before (fully backwards compatible).
+
+Safety guards: the resolver detects loops (a name that reappears in the chain) and enforces a maximum depth of **10 hops**, logging a warning and stopping at the last good name rather than looping forever.
+
+#### Provider selection follows the delegation
+
+The DNS provider plugin is resolved against the **name where the record actually lands**:
+
+- **No delegation** → the provider is selected for the certificate domain (e.g. `www.example.com`).
+- **Delegated** → the provider is selected for the **resolved terminal target** (e.g. `abc123.acme-validation.net`).
+
+This means a challenge delegated into a zone hosted by a *different* DNS provider is routed to the plugin that owns that zone. Propagation checks and cleanup also operate on the resolved name.
+
+> ℹ️ Provider selection uses the AnyCA Gateway's Domain Validation configuration, which matches a configured (optionally wildcard) domain pattern one label at a time. Ensure the **delegation target's zone** is covered by a Domain Validation entry — e.g. a target of `abc123.acme-validation.net` needs a validator whose domain matches `*.acme-validation.net`.
+
+#### Example (multi-level delegation across providers)
+
+```text
+Cert domain:      www.example.com                     (production zone, e.g. GoDaddy)
+Challenge name:   _acme-challenge.www.example.com
+
+DNS records (static, created once):
+  _acme-challenge.www.example.com   CNAME  hop1.example.com          (GoDaddy)
+  hop1.example.com                  CNAME  hop2.example.com          (GoDaddy)
+  hop2.example.com                  CNAME  val.acme-zone.net         (points into the validation zone)
+
+Resolution + placement:
+  _acme-challenge.www.example.com → hop1 → hop2 → val.acme-zone.net  (terminal)
+  Provider plugin selected for:   acme-zone.net  (the zone that owns val.acme-zone.net)
+  TXT record created at:          val.acme-zone.net
+  ACME CA queries _acme-challenge.www.example.com, follows the CNAMEs, finds the TXT ✅
+```
+
+> ℹ️ **Private/internal delegation zones:** set `DnsVerificationServer` to your authoritative DNS server IP. The `CnameResolver` honors it for the CNAME lookups; otherwise public resolvers (Google, Cloudflare, Quad9) are used.
 
 </details>
 

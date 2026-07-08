@@ -52,17 +52,14 @@ This plugin has been tested and confirmed to work with the following ACME provid
 
 It is designed to be provider-agnostic and should work with any standards-compliant ACME server.
 
-### 🌐 Supported DNS Providers
-DNS-01 challenge automation is supported through the following providers:
-- **Google Cloud DNS**
-- **AWS Route 53**
-- **Azure DNS**
-- **Cloudflare**
-- **NS1**
-- **Infoblox**
-- **RFC 2136 Dynamic DNS** (BIND with TSIG authentication)
+### 🌐 DNS Providers (Pluggable)
+DNS-01 challenge automation is handled by **separate, pluggable DNS provider plugins** that are deployed alongside the AnyCA Gateway — they are no longer built into this plugin. The Gateway resolves the appropriate DNS provider plugin per domain at enrollment time.
 
-Additional DNS providers can be added by extending the included `IDnsProvider` interface.
+For the current list of available DNS provider plugins, see the Keyfactor GitHub organization:
+
+👉 **[Keyfactor DNS provider plugins (`-dnsplugin`)](https://github.com/orgs/Keyfactor/repositories?q=-dnsplugin)**
+
+Each plugin repository documents its own supported authentication methods and configuration keys. New DNS providers can be added by publishing a new plugin that implements the Gateway's `IDomainValidator` interface — no change to this ACME plugin is required.
 
 ---
 
@@ -102,17 +99,15 @@ The Acme AnyCA Gateway REST plugin is supported by Keyfactor for Keyfactor custo
 This plugin automates DNS-01 challenges using pluggable DNS provider implementations. These providers create and remove TXT records to prove domain control to ACME servers.
 
 <details>
-<summary><strong>✅ Supported DNS Providers</strong></summary>
+<summary><strong>🔌 Available DNS Provider Plugins</strong></summary>
 
-| Provider     | Auth Methods Supported                        | Config Keys Required                                  |
-|--------------|-----------------------------------------------|--------------------------------------------------------|
-| Google DNS   | Service Account Key (file or JSON), or ADC    | `Google_ServiceAccountKeyPath`, `Google_ServiceAccountKeyJson`, `Google_ProjectId` |
-| AWS Route 53 | Access Key/Secret or IAM Role                 | `AwsRoute53_AccessKey`, `AwsRoute53_SecretKey`         |
-| Azure DNS    | Client Secret or Managed Identity             | `Azure_TenantId`, `Azure_ClientId`, `Azure_ClientSecret`, `Azure_SubscriptionId` |
-| Cloudflare   | API Token                                     | `Cloudflare_ApiToken`                                  |
-| NS1          | API Key                                       | `Ns1_ApiKey`                                           |
-| Infoblox     | Username/Password (Basic Auth)                | `Infoblox_Host`, `Infoblox_Username`, `Infoblox_Password` |
-| RFC 2136     | TSIG Key (BIND)                               | `Rfc2136_Server`, `Rfc2136_Zone`, `Rfc2136_TsigKeyName`, `Rfc2136_TsigKey` |
+DNS providers are distributed as **standalone plugins**, each in its own repository, and are deployed alongside the AnyCA Gateway rather than bundled into this ACME plugin. This lets you add or upgrade a DNS provider without rebuilding the ACME plugin.
+
+For the current, authoritative list of available DNS provider plugins, query the Keyfactor GitHub organization:
+
+👉 **[github.com/orgs/Keyfactor/repositories?q=-dnsplugin](https://github.com/orgs/Keyfactor/repositories?q=-dnsplugin)**
+
+Each plugin's own repository is the source of truth for its supported authentication methods, required configuration keys, and setup instructions. Configure the DNS provider(s) through the AnyCA Gateway's **Domain Validation** configuration; the Gateway resolves the correct plugin per domain at enrollment time.
 
 </details>
 
@@ -178,133 +173,34 @@ Resolution + placement:
 </details>
 
 <details>
-<summary><strong>🔑 Credential Flow</strong></summary>
+<summary><strong>🔑 Provider Credentials &amp; Configuration</strong></summary>
 
-Each provider supports multiple credential strategies:
-
-- **Google DNS**:
-  - ✅ **Service Account Key File** (via `Google_ServiceAccountKeyPath`)
-  - ✅ **Service Account Key JSON** (via `Google_ServiceAccountKeyJson` - paste JSON directly)
-  - ✅ **Application Default Credentials** (e.g., GCP Workload Identity or developer auth)
-
-- **AWS Route 53**:  
-  - ✅ **Access/Secret Keys** (`AwsRoute53_AccessKey`, `AwsRoute53_SecretKey`)  
-  - ✅ **IAM Role via EC2 Instance Metadata** (no explicit credentials)
-
-- **Azure DNS**:  
-  - ✅ **Client Secret** (explicit `TenantId`, `ClientId`, `ClientSecret`)  
-  - ✅ **Managed Identity** or environment-based credentials via `DefaultAzureCredential`
-
-- **Cloudflare**:  
-  - ✅ **Bearer API Token** for zone-level DNS control
-
-- **NS1**:
-  - ✅ **API Key** passed in header `X-NSONE-Key`
-
-- **Infoblox**:
-  - ✅ **Username/Password** (Basic Auth via WAPI REST API)
-  - Optional: `Infoblox_WapiVersion` (defaults to `2.12`)
-  - Optional: `Infoblox_IgnoreSslErrors` for self-signed certificates
-
-- **RFC 2136 (BIND)**:
-  - ✅ **TSIG Key** for secure dynamic DNS updates
-  - Supports algorithms: `hmac-md5`, `hmac-sha1`, `hmac-sha256`, `hmac-sha384`, `hmac-sha512`
-  - Default algorithm: `hmac-sha256` (recommended)
-  - Optional: `Rfc2136_Port` (defaults to `53`)
+Authentication methods and required configuration keys are specific to each DNS provider and are **documented in that provider's own plugin repository** — see the [`-dnsplugin` repositories](https://github.com/orgs/Keyfactor/repositories?q=-dnsplugin). Credentials and settings are supplied through the AnyCA Gateway's **Domain Validation** configuration for the chosen plugin, not in this ACME plugin's configuration.
 
 </details>
 
 <details>
-<summary><strong>🏢 On-Premise DNS (RFC 2136)</strong></summary>
+<summary><strong>🏢 On-Premise / Private DNS</strong></summary>
 
-The RFC 2136 provider enables ACME DNS-01 challenges with on-premise DNS servers that support dynamic updates, including:
+On-premise and private DNS support (e.g. RFC 2136 dynamic updates against BIND/PowerDNS with TSIG) is provided by the corresponding DNS provider plugin — see its repository under the [`-dnsplugin` list](https://github.com/orgs/Keyfactor/repositories?q=-dnsplugin) for TSIG key generation, server/zone settings, and setup examples.
 
-- **BIND** (Berkeley Internet Name Domain)
-- **PowerDNS** (with dynamic update support)
-- Any DNS server supporting RFC 2136 with TSIG authentication
-
-#### Configuration Requirements
-
-| Field | Description | Required |
-|-------|-------------|----------|
-| `Rfc2136_Server` | DNS server hostname or IP address | ✅ Yes |
-| `Rfc2136_Zone` | DNS zone to update (e.g., `example.com`) | ✅ Yes |
-| `Rfc2136_TsigKeyName` | TSIG key name (e.g., `acme-update-key`) | ✅ Yes |
-| `Rfc2136_TsigKey` | Base64-encoded TSIG secret key | ✅ Yes |
-| `Rfc2136_TsigAlgorithm` | TSIG algorithm (default: `hmac-sha256`) | Optional |
-| `Rfc2136_Port` | DNS server port (default: `53`) | Optional |
-| `DnsVerificationServer` | DNS server IP for verification (for private zones) | Optional |
-
-#### Generating TSIG Keys
-
-**For BIND:**
-bash
-
-**Generate a TSIG key using tsig-keygen (BIND 9.10+)**
-tsig-keygen -a hmac-sha256 acme-update-key
-
-**Output example:**
-key "acme-update-key" {
-    algorithm hmac-sha256;
-    secret "base64encodedkey==";
-};
-
-#### BIND Configuration Example
-
-Add to `named.conf`:
-
-key "acme-update-key" {
-    algorithm hmac-sha256;
-    secret "YourBase64EncodedKeyHere==";
-};
-
-zone "example.com" {
-    type master;
-    file "/var/named/example.com.zone";
-    allow-update { key "acme-update-key"; };
-};
-
-
-> ⚠️ **Security Note:** TSIG keys should be treated as secrets. Store them securely and use strong keys generated with cryptographically secure random number generators.
-
-> ⚠️ **Private DNS Zones:** For private/local DNS zones (e.g., `.local`), set `DnsVerificationServer` to your authoritative DNS server IP so the plugin can verify TXT record propagation.
+> ⚠️ **Private DNS Zones:** For private/local DNS zones (e.g., `.local`) that are not reachable via public resolvers, set `DnsVerificationServer` to your authoritative DNS server IP. This ACME plugin uses it both to verify TXT record propagation and to resolve CNAME delegation chains.
 
 </details>
 
 <details>
 <summary><strong>🧩 Adding New DNS Providers</strong></summary>
 
-To add support for new DNS services:
+DNS providers are independent plugins, so adding a new one requires **no change to this ACME plugin**. Publish a plugin that implements the AnyCA Gateway's `IDomainValidator` interface (create/cleanup the validation record for a domain), deploy it alongside the Gateway, and configure it under **Domain Validation**. The Gateway will resolve it per domain at enrollment time.
 
-1. Implement the `IDnsProvider` interface:
-   ```csharp
-   public interface IDnsProvider
-   {
-       Task<bool> CreateRecordAsync(string recordName, string txtValue);
-       Task<bool> DeleteRecordAsync(string recordName);
-   }
-   ```
-
-2. Register the new provider in the `DnsProviderFactory`:
-   ```csharp
-   case "yourprovider":
-       return new YourCustomDnsProvider(config.YourProviderConfigValues...);
-   ```
-
-3. Use zone detection logic similar to `GoogleDnsProvider`, `AzureDnsProvider`, or `Ns1DnsProvider`.
-
-Each provider is instantiated dynamically based on the `DnsProvider` field in the `AcmeClientConfig`.
-
-> 🔁 This modular DNS system ensures challenge automation works across cloud providers and is easily extensible.
+Use any existing plugin in the [`-dnsplugin` list](https://github.com/orgs/Keyfactor/repositories?q=-dnsplugin) as a reference implementation.
 
 </details>
 
 <details>
-<summary><strong>🔒 CA-Level DNS Provider Binding</strong></summary>
+<summary><strong>🔒 Per-Domain DNS Provider Resolution</strong></summary>
 
-Each ACME/DNS combination is supported **at the CA level**, meaning that only **one DNS provider** is configured per CA entry in Keyfactor. This ensures a clear and isolated challenge path for each ACME CA connector instance.
-
-If you need to support multiple DNS zones/providers (e.g., both AWS and Cloudflare), configure **separate CA entries**, each with its own DNS provider configuration.
+You can configure **multiple DNS provider plugins** and the Gateway selects the appropriate one for each domain based on your **Domain Validation** configuration (matching a configured, optionally wildcard, domain pattern). This also means a single certificate with SANs across different zones/providers can be validated using different plugins, and CNAME-delegated challenges are routed to the plugin that owns the delegation target's zone (see **CNAME Delegation** above).
 
 </details>
 
@@ -576,13 +472,9 @@ If `AccountStoragePath` is not set and `%APPDATA%` is unavailable, the plugin de
 </details>
 
 <details>
-<summary><strong>🌐 Google Cloud DNS in Containers</strong></summary>
+<summary><strong>🌐 DNS Provider Authentication in Containers</strong></summary>
 
-For Google Cloud DNS in container environments, you have three authentication options:
-
-1. **Workload Identity (GKE)**: No explicit credentials needed; uses pod identity.
-2. **JSON key in config**: Paste the service account JSON directly into `Google_ServiceAccountKeyJson`.
-3. **Mounted JSON file**: Mount the service account key file and set `Google_ServiceAccountKeyPath`.
+DNS provider credentials in containerized environments are handled by each **DNS provider plugin**, not by this ACME plugin. Options such as cloud-native identity (GKE Workload Identity, EKS IRSA, AKS Pod Identity), mounted key files, or config-supplied secrets depend on the provider — see the relevant plugin under the [`-dnsplugin` list](https://github.com/orgs/Keyfactor/repositories?q=-dnsplugin) for its supported container authentication methods.
 
 </details>
 

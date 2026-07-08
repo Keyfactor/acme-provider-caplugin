@@ -22,32 +22,8 @@
         <PackageReference Include="System.Drawing.Common" Version="10.0.2" />
         <PackageReference Include="System.Net.Http.WinHttpHandler" Version="9.0.5" />
         <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.5" />
-
-        <!-- DNS Provider dependencies - REMOVE THESE after migrating all providers to plugins -->
-        <!-- TODO: These should be removed once all DNS providers are moved to separate plugin projects -->
-        <!-- Google DNS - MIGRATED to Keyfactor.DnsProvider.Google plugin -->
-        <!-- <PackageReference Include="Google.Apis.Dns.v1" Version="1.69.0.3753" /> -->
-
-        <!-- AWS Route53 - TODO: Migrate to plugin -->
-        <PackageReference Include="AWSSDK.Core" Version="4.0.3.11" />
-        <PackageReference Include="AWSSDK.Route53" Version="4.0.8.8" />
-
-        <!-- Azure DNS - TODO: Migrate to plugin -->
-        <PackageReference Include="Azure.Identity" Version="1.14.0" />
-        <PackageReference Include="Azure.ResourceManager.Cdn" Version="1.4.0" />
-        <PackageReference Include="Azure.ResourceManager.Dns" Version="1.1.1" />
-
-        <!-- RFC2136 - TODO: Migrate to plugin -->
-        <PackageReference Include="ARSoft.Tools.Net" Version="3.6.0" />
-
-        <!-- Cloudflare - TODO: Migrate to plugin (uses standard HTTP client) -->
-
-        <!-- NS1 - TODO: Migrate to plugin (uses standard HTTP client) -->
-
-        <!-- Infoblox - TODO: Migrate to plugin (uses standard HTTP client) -->
-
-        <!-- Public Suffix - TODO: Evaluate if needed in core or per-provider -->
-        <PackageReference Include="Nager.PublicSuffix" Version="3.5.0" />
+        <!-- DnsClient (above) is used for CNAME delegation resolution and TXT propagation checks.
+             DNS provider SDKs now live in their own externalized DNS provider plugins. -->
     </ItemGroup>
     <ItemGroup>
         <None Update="manifest.json">

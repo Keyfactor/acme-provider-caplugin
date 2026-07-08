@@ -624,29 +624,8 @@ spec:
         * **EabKid** - External Account Binding Key ID (optional)
         * **EabHmacKey** - External Account Binding HMAC key (optional)
         * **SignerEncryptionPhrase** - Used to encrypt singer information when account is saved to disk (optional)
-        * **DnsProvider** - DNS Provider to use for ACME DNS-01 challenges (options: Google, Cloudflare, AwsRoute53, Azure, Ns1, Rfc2136, Infoblox)
-        * **Google_ServiceAccountKeyPath** - Google Cloud DNS: Path to service account JSON key file only if using Google DNS (Optional)
-        * **Google_ServiceAccountKeyJson** - Google Cloud DNS: Service account JSON key content (alternative to file path for containerized deployments)
-        * **Google_ProjectId** - Google Cloud DNS: Project ID only if using Google DNS (Optional)
         * **AccountStoragePath** - Path for ACME account storage. Defaults to %APPDATA%\AcmeAccounts on Windows or ./AcmeAccounts in containers.
-        * **Cloudflare_ApiToken** - Cloudflare DNS: API Token only if using Cloudflare DNS (Optional)
-        * **Azure_ClientId** - Azure DNS: ClientId only if using Azure DNS and Not Managed Itentity in Azure (Optional)
-        * **Azure_ClientSecret** - Azure DNS: ClientSecret only if using Azure DNS and Not Managed Itentity in Azure (Optional)
-        * **Azure_SubscriptionId** - Azure DNS: SubscriptionId only if using Azure DNS and Not Managed Itentity in Azure (Optional)
-        * **Azure_TenantId** - Azure DNS: TenantId only if using Azure DNS and Not Managed Itentity in Azure (Optional)
-        * **AwsRoute53_AccessKey** - Aws DNS: Access Key only if not using AWS DNS and default AWS Chain Creds on AWS (Optional)
-        * **AwsRoute53_SecretKey** - Aws DNS: Secret Key only if using AWS DNS and not using default AWS Chain Creds on AWS (Optional)
-        * **Ns1_ApiKey** - Ns1 DNS: Api Key only if Using Ns1 DNS (Optional)
-        * **Rfc2136_Server** - RFC 2136 DNS: Server hostname or IP address (Optional)
-        * **Rfc2136_Port** - RFC 2136 DNS: Server port (default 53) (Optional)
-        * **Rfc2136_Zone** - RFC 2136 DNS: Zone name (e.g., example.com) (Optional)
-        * **Rfc2136_TsigKeyName** - RFC 2136 DNS: TSIG key name for authentication (Optional)
-        * **Rfc2136_TsigKey** - RFC 2136 DNS: TSIG key (base64 encoded) for authentication (Optional)
-        * **Rfc2136_TsigAlgorithm** - RFC 2136 DNS: TSIG algorithm (default hmac-sha256) (Optional)
-        * **DnsVerificationServer** - DNS server to use for verifying TXT record propagation. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).
-        * **Infoblox_Host** - Infoblox DNS: API URL (e.g., https://infoblox.example.com/wapi/v2.12) only if using Infoblox DNS (Optional)
-        * **Infoblox_Username** - Infoblox DNS: Username for authentication only if using Infoblox DNS (Optional)
-        * **Infoblox_Password** - Infoblox DNS: Password for authentication only if using Infoblox DNS (Optional)
+        * **DnsVerificationServer** - DNS server used to verify TXT record propagation and to resolve CNAME delegation chains. For private/local DNS zones, set this to your authoritative DNS server IP (e.g., 10.3.10.37). Leave empty to use public DNS servers (Google, Cloudflare, etc.).
 
 2. Define [Certificate Profiles](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCP-Gateway.htm) and [Certificate Templates](https://software.keyfactor.com/Guides/AnyCAGatewayREST/Content/AnyCAGatewayREST/AddCA-Gateway.htm) for the Certificate Authority as required. One Certificate Profile must be defined per Certificate Template. It's recommended that each Certificate Profile be named after the Product ID. The Acme plugin supports the following product IDs:
 

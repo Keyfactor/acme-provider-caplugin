@@ -685,21 +685,38 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                         async () => await cnameResolver.ResolveChallengeTargetAsync(validation.DnsRecordName),
                         detail: $"from {validation.DnsRecordName}");
 
+                    // Decide which name to resolve the DNS provider plugin against. The framework
+                    // matches validators against the (wildcard) domain patterns configured per
+                    // provider, keyed on the certificate/zone name (e.g. *.keyfactor.ssl4saas.com)
+                    // -- NOT the _acme-challenge record name. So:
+                    //   * No delegation  -> resolve on the cert domain (www.example.com), exactly
+                    //                       as before delegation support existed.
+                    //   * CNAME delegated -> resolve on the terminal target (host.validation-zone),
+                    //                       so the provider that owns the delegation zone is chosen.
+                    // Note the resolver returns the original name unchanged when no CNAME exists,
+                    // and that original name still carries the _acme-challenge prefix, which would
+                    // not match the configured wildcard -- hence the explicit branch here.
+                    bool isDelegated = !string.Equals(
+                        recordName?.TrimEnd('.'),
+                        validation.DnsRecordName?.TrimEnd('.'),
+                        StringComparison.OrdinalIgnoreCase);
+                    var validatorLookupName = isDelegated ? recordName : domain;
+
                     var domainValidator = flow.Step($"ResolveValidator:{domain}",
                         () =>
                         {
-                            var v = _validatorFactory.ResolveDomainValidator(recordName, DNS_CHALLENGE_TYPE);
+                            var v = _validatorFactory.ResolveDomainValidator(validatorLookupName, DNS_CHALLENGE_TYPE);
                             if (v == null)
                             {
                                 throw new InvalidOperationException(
-                                    $"Failed to resolve domain validator for '{recordName}' (challenge for '{domain}'). " +
+                                    $"Failed to resolve domain validator for '{validatorLookupName}' (challenge for '{domain}'). " +
                                     "Ensure the appropriate DNS provider plugin is deployed and configured for the zone that hosts the (possibly CNAME-delegated) challenge record.");
                             }
                             return v;
                         });
 
-                    _logger.LogInformation("Using domain validator: {ValidatorType} for record: {RecordName} (domain: {Domain})",
-                        domainValidator.GetType().Name, recordName, domain);
+                    _logger.LogInformation("Using domain validator: {ValidatorType} resolved on {LookupName} (record: {RecordName}, domain: {Domain}, delegated: {Delegated})",
+                        domainValidator.GetType().Name, validatorLookupName, recordName, domain, isDelegated);
 
                     await flow.StepAsync($"StageValidation:{domain}",
                         async () =>

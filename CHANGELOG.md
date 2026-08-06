@@ -1,7 +1,3 @@
-# v2.0.0
-* Dns Plugin Support
-* Cname Proxy Support
-  
 # v1.3.0
 * Containerization Changes for SaaS Environment
 * Fixed URL CaId Length issue

@@ -9,6 +9,12 @@
         <AssemblyName>AcmeCaPlugin</AssemblyName>
     </PropertyGroup>
     <ItemGroup>
+        <!-- Exposes internal types/members (e.g. AcmeClient, AccountManager, Account, DescribeException)
+             to the unit test project so implementation classes can be exercised directly without
+             changing their visibility to public. Test-only change; does not affect runtime behavior. -->
+        <InternalsVisibleTo Include="AcmeCaPlugin.Tests" />
+    </ItemGroup>
+    <ItemGroup>
         <!-- Core ACME and CA Plugin dependencies -->
         <PackageReference Include="ACMESharpCore" Version="2.2.0.148" />
         <PackageReference Include="Autofac" Version="8.3.0" />

@@ -59,25 +59,37 @@ public class CloudflareDnsProvider : IDnsProvider
         var (zoneName, zoneId) = await FindZoneForRecordAsync(recordName);
         if (zoneId == null || zoneName == null) return false;
 
-        var relativeName = GetRelativeRecordName(recordName, zoneName);
+        // Cloudflare's name filter matches the fully-qualified record name, not the zone-relative one
+        var fullName = Uri.EscapeDataString(recordName.TrimEnd('.'));
 
-        var recordsResp = await _httpClient.GetAsync($"zones/{zoneId}/dns_records?type=TXT&name={relativeName}");
+        var recordsResp = await _httpClient.GetAsync($"zones/{zoneId}/dns_records?type=TXT&name={fullName}");
         if (!recordsResp.IsSuccessStatusCode) return false;
 
         var json = await recordsResp.Content.ReadAsStringAsync();
-        var doc = JsonDocument.Parse(json);
+        using var doc = JsonDocument.Parse(json);
 
         var resultArray = doc.RootElement.GetProperty("result");
         if (resultArray.GetArrayLength() == 0) return false;
-        var recordId = resultArray[0].GetProperty("id").GetString();
 
-        if (recordId == null) return false;
+        // A wildcard and its base domain publish two TXT values under the same name; remove all of them
+        var allDeleted = true;
+        foreach (var record in resultArray.EnumerateArray())
+        {
+            var recordId = record.GetProperty("id").GetString();
+            if (recordId == null)
+            {
+                allDeleted = false;
+                continue;
+            }
 
-        var deleteResp = await _httpClient.DeleteAsync($"zones/{zoneId}/dns_records/{recordId}");
-        var result = await deleteResp.Content.ReadAsStringAsync();
+            var deleteResp = await _httpClient.DeleteAsync($"zones/{zoneId}/dns_records/{recordId}");
+            var result = await deleteResp.Content.ReadAsStringAsync();
 
-        Console.WriteLine($"Delete TXT: {deleteResp.StatusCode} - {result}");
-        return deleteResp.IsSuccessStatusCode;
+            Console.WriteLine($"Delete TXT: {deleteResp.StatusCode} - {result}");
+            allDeleted &= deleteResp.IsSuccessStatusCode;
+        }
+
+        return allDeleted;
     }
 
     private async Task<string?> GetZoneIdAsync(string zoneName)

@@ -307,11 +307,20 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Store pending order immediately
                 var accountId = accountDetails.Kid.Split('/').Last();
 
-                // Process challenges
-                await ProcessAuthorizations(acmeClient, order, config);
+                // Process challenges, then finalize. Challenge TXT records are removed afterwards
+                // whether or not the order succeeded.
+                var createdRecords = new List<string>();
+                try
+                {
+                    await ProcessAuthorizations(acmeClient, order, config, createdRecords);
 
-                // Finalize with original CSR bytes
-                order = await acmeClient.FinalizeOrderAsync(order, csrBytes);
+                    // Finalize with original CSR bytes
+                    order = await acmeClient.FinalizeOrderAsync(order, csrBytes);
+                }
+                finally
+                {
+                    await CleanupDnsRecordsAsync(config, createdRecords);
+                }
 
                 // If order is valid immediately, download cert
                 if (order.Payload?.Status == "valid" && !string.IsNullOrEmpty(order.Payload.Certificate))
@@ -492,7 +501,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
         /// <summary>
         /// Processes ACME authorizations with DNS verification before challenge submission
         /// </summary>
-        private async Task ProcessAuthorizations(AcmeClient acmeClient, OrderDetails order, AcmeClientConfig config)
+        private async Task ProcessAuthorizations(AcmeClient acmeClient, OrderDetails order, AcmeClientConfig config, List<string> createdRecords)
         {
             if (order?.Payload is not Order payload || payload.Authorizations == null)
             {
@@ -527,6 +536,7 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Create DNS record (will throw exception with details if it fails)
                 var dnsProvider = DnsProviderFactory.Create(config, _logger);
                 await dnsProvider.CreateRecordAsync(validation.DnsRecordName, validation.DnsRecordValue);
+                createdRecords.Add(validation.DnsRecordName);
 
                 _logger.LogInformation("Created DNS record {RecordName} for domain {Domain}",
                     validation.DnsRecordName, authz.Identifier.Value);
@@ -570,6 +580,44 @@ namespace Keyfactor.Extensions.CAPlugin.Acme
                 // Submit challenge response
                 _logger.LogInformation("Submitting challenge for {Domain}", authz.Identifier.Value);
                 await acmeClient.AnswerChallengeAsync(challenge);
+            }
+        }
+
+        /// <summary>
+        /// Removes DNS-01 challenge TXT records. Best effort: failures are logged and never
+        /// affect the enrollment result.
+        /// </summary>
+        private async Task CleanupDnsRecordsAsync(AcmeClientConfig config, IEnumerable<string> recordNames)
+        {
+            // Wildcard and base-domain authorizations share one record name, so delete each name once.
+            var names = recordNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (names.Count == 0)
+                return;
+
+            IDnsProvider dnsProvider;
+            try
+            {
+                dnsProvider = DnsProviderFactory.Create(config, _logger);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not create DNS provider for challenge record cleanup");
+                return;
+            }
+
+            foreach (var name in names)
+            {
+                try
+                {
+                    if (await dnsProvider.DeleteRecordAsync(name))
+                        _logger.LogInformation("Removed DNS record {RecordName}", name);
+                    else
+                        _logger.LogWarning("DNS record {RecordName} was not removed; it may need manual cleanup", name);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to remove DNS record {RecordName}; it may need manual cleanup", name);
+                }
             }
         }
 

@@ -64,8 +64,20 @@ internal class Program
         var configDict = BuildConfigurationDictionary(config);
 
         var configProvider = new MockConfigProvider(configDict);
-        var plugin = new AcmeCaPlugin();
-        plugin.Initialize(configProvider, null);
+        var validatorFactory = new MockDomainValidatorFactory();
+        var plugin = new AcmeCaPlugin(validatorFactory);
+
+        try
+        {
+            plugin.Initialize(configProvider, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError($"❌ Failed to initialize plugin: {ex.Message}");
+            logger.LogInformation("📌 Note: The plugin now requires DNS provider plugins to be deployed separately.");
+            logger.LogInformation("📌 See DNS-PLUGINS-COMPLETE.md for deployment instructions.");
+            return;
+        }
 
         if (config.RunEnroll)
         {
@@ -399,6 +411,22 @@ internal class Program
         public Dictionary<string, object> CAConnectionData { get; }
         public Dictionary<string, object> CertificateAuthorityData => new();
         public Dictionary<string, object> Metadata => new();
+    }
+
+    // === Mock domain validator factory for testing ===
+    // NOTE: In production, the framework provides the factory that loads plugins from disk.
+    // This is a simple mock that returns null, requiring DNS provider plugins to be loaded separately.
+    private class MockDomainValidatorFactory : IDomainValidatorFactory
+    {
+        public IDomainValidator ResolveDomainValidator(string domain, string validationType)
+        {
+            // In a real test scenario, you would load the actual plugin assemblies here
+            // For now, this returns null which will cause the plugin to fail initialization
+            // TODO: Load actual DNS provider plugin assemblies for testing
+            Console.WriteLine($"⚠️  MockDomainValidatorFactory: Cannot resolve validator for domain '{domain}', type '{validationType}'");
+            Console.WriteLine($"⚠️  DNS provider plugins must be deployed separately and loaded via the framework factory.");
+            return null;
+        }
     }
 
     // === CSR helper ===

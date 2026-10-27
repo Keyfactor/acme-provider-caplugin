@@ -1,7 +1,7 @@
-# v2.0.0
-* Dns Plugin Support
-* Cname Proxy Support
-  
+# v1.3.2
+* Fixed DNS-01 challenge TXT records not being removed after certificate issuance
+* Fixed Cloudflare DNS record deletion lookup and removal of all matching TXT records
+
 # v1.3.0
 * Containerization Changes for SaaS Environment
 * Fixed URL CaId Length issue
